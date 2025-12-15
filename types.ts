@@ -69,6 +69,7 @@ export interface User {
   name: string;
   username?: string; // Optional custom username for community contributions
   email: string;
+  photoURL?: string; // Profile photo URL
   preferences: UserPreferences;
 }
 

@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { UserSettings, AspectRatioOption, GraphicType, User } from '../types';
-import { X, Settings as SettingsIcon, Save, User as UserIcon } from 'lucide-react';
+import { X, Settings as SettingsIcon, Save, User as UserIcon, Camera, Loader2 } from 'lucide-react';
+import { uploadProfileImage } from '../services/imageService';
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   user: User;
-  onSave: (newSettings: UserSettings, profileData?: { name: string; username: string }) => void;
+  onSave: (newSettings: UserSettings, profileData?: { name: string; username: string; photoURL?: string }) => void;
   graphicTypes: GraphicType[];
   aspectRatios: AspectRatioOption[];
 }
@@ -22,18 +23,41 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [localSettings, setLocalSettings] = useState<UserSettings>(user.preferences.settings || { contributeByDefault: false });
   const [name, setName] = useState(user.name);
   const [username, setUsername] = useState(user.username || '');
+  const [photoURL, setPhotoURL] = useState<string | undefined>(user.photoURL);
+  
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     setLocalSettings(user.preferences.settings || { contributeByDefault: false });
     setName(user.name);
     setUsername(user.username || '');
+    setPhotoURL(user.photoURL);
   }, [user, isOpen]);
 
   if (!isOpen) return null;
 
   const handleSave = () => {
-    onSave(localSettings, { name, username });
+    onSave(localSettings, { name, username, photoURL });
     onClose();
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    setUploadError(null);
+
+    try {
+      const url = await uploadProfileImage(file, user.id);
+      setPhotoURL(url);
+    } catch (err: any) {
+      setUploadError(err.message);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   return (
@@ -57,6 +81,36 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <UserIcon size={14} /> Profile
             </h4>
             
+            {/* Photo Upload */}
+            <div className="flex flex-col items-center gap-3">
+              <div className="relative group">
+                <div className="w-20 h-20 rounded-full overflow-hidden bg-gray-200 dark:bg-[#21262d] flex items-center justify-center border-2 border-gray-200 dark:border-[#30363d]">
+                  {isUploading ? (
+                    <Loader2 size={24} className="animate-spin text-brand-teal" />
+                  ) : photoURL ? (
+                    <img src={photoURL} alt={name} className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-2xl font-bold text-slate-400">{name.charAt(0).toUpperCase()}</span>
+                  )}
+                </div>
+                <button 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="absolute bottom-0 right-0 p-1.5 bg-brand-teal text-white rounded-full shadow-lg hover:bg-teal-600 transition-colors"
+                  title="Upload Photo"
+                >
+                  <Camera size={14} />
+                </button>
+                <input 
+                  type="file" 
+                  ref={fileInputRef}
+                  className="hidden"
+                  accept="image/*"
+                  onChange={handleFileSelect}
+                />
+              </div>
+              {uploadError && <p className="text-xs text-red-500">{uploadError}</p>}
+            </div>
+
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                 Display Name

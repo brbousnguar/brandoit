@@ -273,7 +273,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSaveSettings = async (newSettings: UserSettings, profileData?: { name: string; username: string }) => {
+  const handleSaveSettings = async (newSettings: UserSettings, profileData?: { name: string; username: string; photoURL?: string }) => {
     if (!user) return;
     
     // Update local state for immediate feedback
@@ -281,6 +281,7 @@ const App: React.FC = () => {
         ...user,
         name: profileData?.name || user.name,
         username: profileData?.username || user.username,
+        photoURL: profileData?.photoURL || user.photoURL,
         preferences: {
             ...user.preferences,
             settings: newSettings
@@ -373,12 +374,15 @@ const App: React.FC = () => {
              <div className="relative">
                <button 
                  onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                 className="flex items-center gap-2 p-1.5 pr-3 bg-gray-100 dark:bg-[#21262d] hover:bg-gray-200 dark:hover:bg-[#30363d] rounded-full transition-colors"
+                 className="flex items-center gap-2 p-1 bg-gray-100 dark:bg-[#21262d] hover:bg-gray-200 dark:hover:bg-[#30363d] rounded-full transition-colors"
                >
-                 <div className="w-8 h-8 rounded-full bg-brand-red flex items-center justify-center text-white text-xs font-bold">
-                    {user.name.charAt(0).toUpperCase()}
+                 <div className="w-8 h-8 rounded-full bg-brand-red flex items-center justify-center text-white text-xs font-bold overflow-hidden">
+                    {user.photoURL ? (
+                      <img src={user.photoURL} alt={user.name} className="w-full h-full object-cover" />
+                    ) : (
+                      user.name.charAt(0).toUpperCase()
+                    )}
                  </div>
-                 <span className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate max-w-[100px] hidden sm:block">{user.name}</span>
                </button>
 
                {isUserMenuOpen && (

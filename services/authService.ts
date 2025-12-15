@@ -65,6 +65,7 @@ const transformUser = (firebaseUser: FirebaseUser, userData: any): User => {
     name: userData?.name || firebaseUser.displayName || 'User',
     username: userData?.username, // Map username from Firestore
     email: firebaseUser.email || '',
+    photoURL: userData?.photoURL || firebaseUser.photoURL || undefined, // Map photoURL
     preferences: userData?.preferences ? hydratePreferences(userData.preferences) : defaultPreferences
   };
 };
@@ -198,7 +199,7 @@ export const authService = {
     }
   },
 
-  updateUserProfile: async (userId: string, data: { name?: string; username?: string }) => {
+  updateUserProfile: async (userId: string, data: { name?: string; username?: string; photoURL?: string }) => {
     try {
       if (data.username) {
         await checkUsernameUnique(data.username, userId);
@@ -207,9 +208,12 @@ export const authService = {
       const userRef = doc(db, "users", userId);
       await updateDoc(userRef, data);
       
-      // If name changed, update Auth profile too
-      if (data.name && auth.currentUser && auth.currentUser.uid === userId) {
-        await updateProfile(auth.currentUser, { displayName: data.name });
+      // If name or photo changed, update Auth profile too
+      if (auth.currentUser && auth.currentUser.uid === userId) {
+        await updateProfile(auth.currentUser, { 
+            displayName: data.name || auth.currentUser.displayName,
+            photoURL: data.photoURL || auth.currentUser.photoURL
+        });
       }
     } catch (error: any) {
       console.error("Error updating user profile:", error);
