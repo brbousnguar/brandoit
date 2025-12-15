@@ -213,16 +213,11 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                                         </span>
                                     )}
                                     {type === 'color' && (
-                                        <>
-                                            <span className="text-[10px] text-slate-500 truncate pr-2">
-                                                {item.colors.join(', ')}
-                                            </span>
-                                            <div className="flex h-4 w-24 rounded-sm overflow-hidden ring-1 ring-black/5 mt-1">
-                                                {item.colors.map((c: string, i: number) => (
-                                                    <div key={i} className="flex-1 h-full" style={{ backgroundColor: c }} />
-                                                ))}
-                                            </div>
-                                        </>
+                                        <div className="flex h-4 w-24 rounded-sm overflow-hidden ring-1 ring-black/5 mt-1">
+                                            {item.colors.map((c: string, i: number) => (
+                                                <div key={i} className="flex-1 h-full" style={{ backgroundColor: c }} />
+                                            ))}
+                                        </div>
                                     )}
                                 </div>
                             </div>
