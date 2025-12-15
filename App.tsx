@@ -302,9 +302,9 @@ const App: React.FC = () => {
             authService.updateUserPreferences(user.id, updatedUser.preferences),
             profileData ? authService.updateUserProfile(user.id, profileData) : Promise.resolve()
         ]);
-    } catch (e) {
+    } catch (e: any) {
         console.error("Failed to save settings", e);
-        setError("Failed to save changes.");
+        setError(e.message || "Failed to save changes.");
     }
   };
 
