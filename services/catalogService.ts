@@ -27,9 +27,13 @@ export const catalogService = {
     userName: string
   ): Promise<string> => {
     try {
+      // Create a plain object from data to ensure no custom types/classes/symbols are passed
+      // and remove any properties that might cause issues (like 'icon' if it's a React component)
+      const sanitizedData = JSON.parse(JSON.stringify(data));
+      
       const docRef = await addDoc(collection(db, CATALOG_COLLECTION), {
         type,
-        data,
+        data: sanitizedData,
         authorId: userId,
         authorName: userName,
         votes: 0,
