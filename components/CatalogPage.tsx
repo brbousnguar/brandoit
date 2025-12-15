@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CatalogItem } from '../types';
+import { CatalogItem } from '../services/catalogService';
 import { catalogService } from '../services/catalogService';
 import { seedCatalog } from '../services/seeder';
 import { ThumbsUp, Download, PenTool, Palette, ArrowLeft, Database, AlertCircle } from 'lucide-react';
@@ -57,7 +57,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
     }));
 
     try {
-      await catalogService.voteItem(itemId, userId, hasVoted ? 'down' : 'up');
+      await catalogService.voteItem(category, itemId, userId, hasVoted ? 'down' : 'up');
     } catch (e) {
       console.error("Vote failed", e);
       // Revert on failure (could implement)
