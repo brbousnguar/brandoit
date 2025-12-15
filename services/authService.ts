@@ -14,9 +14,10 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "./firebase";
 import { User, UserPreferences, BrandColor, VisualStyle, GraphicType, AspectRatioOption } from "../types";
-import { VISUAL_STYLES, GRAPHIC_TYPES, ASPECT_RATIOS } from "../constants";
+import { BRAND_COLORS, VISUAL_STYLES, GRAPHIC_TYPES, ASPECT_RATIOS } from "../constants";
 
 const defaultPreferences: UserPreferences = {
+  brandColors: BRAND_COLORS,
   visualStyles: VISUAL_STYLES,
   graphicTypes: GRAPHIC_TYPES,
   aspectRatios: ASPECT_RATIOS
@@ -25,6 +26,7 @@ const defaultPreferences: UserPreferences = {
 // Helper to remove non-serializable fields (like React components/icons) from preferences
 const sanitizePreferences = (prefs: UserPreferences): any => {
   return {
+    brandColors: prefs.brandColors.map(({ icon, ...rest }: any) => rest),
     visualStyles: prefs.visualStyles.map(({ icon, ...rest }: any) => rest),
     graphicTypes: prefs.graphicTypes.map(({ icon, ...rest }: any) => rest),
     aspectRatios: prefs.aspectRatios.map(({ icon, ...rest }: any) => rest),
@@ -45,6 +47,7 @@ const hydratePreferences = (savedPrefs: any): UserPreferences => {
   };
 
   return {
+    brandColors: savedPrefs.brandColors || defaultPreferences.brandColors,
     visualStyles: mergeWithIcons(savedPrefs.visualStyles || [], VISUAL_STYLES),
     graphicTypes: mergeWithIcons(savedPrefs.graphicTypes || [], GRAPHIC_TYPES),
     aspectRatios: mergeWithIcons(savedPrefs.aspectRatios || [], ASPECT_RATIOS),

@@ -5,6 +5,7 @@ const NANO_BANANA_MODEL = 'gemini-2.5-flash-image';
 const ANALYSIS_MODEL = 'gemini-2.5-flash';
 
 interface GenerationContext {
+  brandColors: BrandColor[];
   visualStyles: VisualStyle[];
   graphicTypes: GraphicType[];
 }
@@ -20,10 +21,11 @@ const getAiClient = (customKey?: string) => {
  * Constructs the engineered prompt based on selected presets and dynamic context
  */
 const constructFullPrompt = (config: GenerationConfig, context: GenerationContext): string => {
+  const colorScheme = context.brandColors.find(c => c.id === config.colorSchemeId);
   const style = context.visualStyles.find(s => s.id === config.visualStyleId);
   const type = context.graphicTypes.find(t => t.id === config.graphicTypeId);
 
-  const colors = style?.colors ? style.colors.join(', ') : 'standard brand colors';
+  const colors = colorScheme ? colorScheme.colors.join(', ') : 'standard colors';
   const styleDesc = style ? style.description : 'clean style';
   const typeName = type ? type.name : 'image';
 
@@ -70,9 +72,10 @@ export const refineGraphic = async (
   customApiKey?: string
 ): Promise<GeneratedImage> => {
   const ai = getAiClient(customApiKey);
+  const colorScheme = context.brandColors.find(c => c.id === config.colorSchemeId);
   const style = context.visualStyles.find(s => s.id === config.visualStyleId);
   
-  const colors = style?.colors ? style.colors.join(', ') : '';
+  const colors = colorScheme ? colorScheme.colors.join(', ') : '';
   const styleDesc = style ? style.description : '';
 
   const fullRefinementPrompt = `
@@ -208,19 +211,17 @@ export const analyzeImageForOption = async (
 
   if (type === 'style') {
     prompt = `
-      Analyze the visual style and color palette of this image.
+      Analyze the visual style of this image.
       Provide a short, catchy Name for this style (e.g. "Neon Cyberpunk", "Minimal Line Art").
-      Provide a concise Description of the visual characteristics (e.g. lighting, texture, line weight, composition).
-      Extract the 4-5 dominant colors as HEX codes.
+      Provide a concise Description of the visual characteristics (e.g. lighting, texture, line weight, composition) that could be used to generate similar images.
     `;
     responseSchema = {
       type: Type.OBJECT,
       properties: {
         name: { type: Type.STRING },
-        description: { type: Type.STRING },
-        colors: { type: Type.ARRAY, items: { type: Type.STRING } }
+        description: { type: Type.STRING }
       },
-      required: ["name", "description", "colors"]
+      required: ["name", "description"]
     };
   } else if (type === 'color') {
     prompt = `

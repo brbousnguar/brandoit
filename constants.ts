@@ -1,4 +1,4 @@
-import { VisualStyle, GraphicType, AspectRatioOption } from './types';
+import { BrandColor, VisualStyle, GraphicType, AspectRatioOption } from './types';
 import { 
   FileChartColumn, 
   Image, 
@@ -16,35 +16,53 @@ import {
   Smartphone
 } from 'lucide-react';
 
-// Combined Visual Styles + Default Colors (using actual Hex codes now)
+export const BRAND_COLORS: BrandColor[] = [
+  {
+    id: 'tech-blue',
+    name: 'Tech Enterprise',
+    colors: ['#0B4F6C', '#00A9A5', '#FFFFFF', '#708090'] // Deep Navy, Electric Blue, White, Slate Gray
+  },
+  {
+    id: 'warm-earth',
+    name: 'Organic Earth',
+    colors: ['#E2725B', '#9DC183', '#F5F5DC', '#36454F'] // Terracotta, Sage Green, Beige, Charcoal
+  },
+  {
+    id: 'monochrome',
+    name: 'Sleek Monochrome',
+    colors: ['#000000', '#A9A9A9', '#D3D3D3', '#FFFFFF'] // Black, Dark Gray, Light Gray, White
+  },
+  {
+    id: 'vibrant-pop',
+    name: 'Vibrant Pop',
+    colors: ['#FF69B4', '#00FFFF', '#FFFF00', '#000000'] // Hot Pink, Cyan, Yellow, Black
+  }
+];
+
 export const VISUAL_STYLES: VisualStyle[] = [
   {
     id: 'minimalist-vector',
     name: 'Minimalist Vector',
     description: 'Flat design, clean lines, no gradients, plenty of whitespace.',
-    icon: Minimize2,
-    colors: ['#0B4F6C', '#00A9A5', '#FFFFFF', '#708090'] // Tech Blue: Deep Navy, Electric Blue, White, Slate Gray
+    icon: Minimize2
   },
   {
     id: 'corporate-flat',
     name: 'Corporate Flat',
     description: 'Professional, trustworthy, isometric clean shapes.',
-    icon: Building2,
-    colors: ['#E2725B', '#9DC183', '#F5F5DC', '#36454F'] // Organic Earth: Terracotta, Sage Green, Beige, Charcoal
+    icon: Building2
   },
   {
     id: 'hand-drawn',
     name: 'Hand Drawn Sketch',
     description: 'Rough edges, pencil texture, approachable and human.',
-    icon: PenTool,
-    colors: ['#000000', '#A9A9A9', '#D3D3D3', '#FFFFFF'] // Monochrome: Black, Dark Gray, Light Gray, White
+    icon: PenTool
   },
   {
     id: '3d-render',
     name: 'Soft 3D Render',
     description: 'Smooth lighting, soft shadows, claymorphism style.',
-    icon: Box,
-    colors: ['#FF69B4', '#00FFFF', '#FFFF00', '#000000'] // Vibrant Pop: Hot Pink, Cyan, Yellow, Black
+    icon: Box
   }
 ];
 
