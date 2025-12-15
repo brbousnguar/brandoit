@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { ControlPanel } from './components/ControlPanel';
 import { ImageDisplay } from './components/ImageDisplay';
 import { AuthModal } from './components/AuthModal';
+import { SettingsModal } from './components/SettingsModal';
 import { RecentGenerations } from './components/RecentGenerations';
-import { GenerationConfig, GeneratedImage, BrandColor, VisualStyle, GraphicType, AspectRatioOption, User, GenerationHistoryItem } from './types';
+import { GenerationConfig, GeneratedImage, BrandColor, VisualStyle, GraphicType, AspectRatioOption, User, GenerationHistoryItem, UserSettings } from './types';
 import { 
   BRAND_COLORS, 
   VISUAL_STYLES, 
@@ -28,13 +29,15 @@ import {
   UploadCloud,
   LogIn,
   LogOut,
-  User as UserIcon
+  User as UserIcon,
+  Settings as SettingsIcon
 } from 'lucide-react';
 
 const App: React.FC = () => {
   // Theme State
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
   // Auth State
   const [user, setUser] = useState<User | null>(null);
@@ -263,6 +266,31 @@ const App: React.FC = () => {
     }
   };
 
+  const handleSaveSettings = async (newSettings: UserSettings) => {
+    if (!user) return;
+    
+    // Update local state for immediate feedback if needed (though preferences sync handles it)
+    const updatedUser = {
+        ...user,
+        preferences: {
+            ...user.preferences,
+            settings: newSettings
+        }
+    };
+    setUser(updatedUser);
+
+    // Apply defaults immediately if changed
+    if (newSettings.defaultGraphicTypeId && newSettings.defaultGraphicTypeId !== config.graphicTypeId) {
+        setConfig(prev => ({ ...prev, graphicTypeId: newSettings.defaultGraphicTypeId! }));
+    }
+    if (newSettings.defaultAspectRatio && newSettings.defaultAspectRatio !== config.aspectRatio) {
+        setConfig(prev => ({ ...prev, aspectRatio: newSettings.defaultAspectRatio! }));
+    }
+
+    // Save to Firestore
+    await authService.updateUserPreferences(user.id, updatedUser.preferences);
+  };
+
   return (
     <div className="flex flex-col w-full min-h-screen font-sans transition-colors duration-200">
       
@@ -299,6 +327,17 @@ const App: React.FC = () => {
                       <div className="p-3 border-b border-gray-200 dark:border-[#30363d]">
                         <p className="text-xs text-slate-500 uppercase font-bold">Signed in as</p>
                           <p className="text-sm font-medium truncate text-slate-900 dark:text-white">{user.email}</p>
+                      </div>
+                      <div className="p-3 border-b border-gray-200 dark:border-[#30363d]">
+                        <button 
+                          onClick={() => {
+                            setIsSettingsOpen(true);
+                            setIsUserMenuOpen(false);
+                          }}
+                          className="w-full text-left flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:text-brand-teal dark:hover:text-brand-teal transition-colors"
+                        >
+                          <SettingsIcon size={16} /> Preferences
+                        </button>
                       </div>
                       <div className="p-3 border-b border-gray-200 dark:border-[#30363d]">
                         <label className="text-xs font-bold text-slate-500 uppercase block mb-1.5">
@@ -392,6 +431,7 @@ const App: React.FC = () => {
         setOptions={{ setBrandColors, setVisualStyles, setGraphicTypes, setAspectRatios }}
         onUploadGuidelines={handleUploadGuidelines}
         isAnalyzing={isAnalyzing}
+        user={user}
       />
 
       {/* 3. Main Content Area */}
@@ -430,6 +470,18 @@ const App: React.FC = () => {
         onLoginSuccess={handleLoginSuccess}
         initialMode={authModalMode}
       />
+
+      {/* Settings Modal */}
+      {user && (
+        <SettingsModal
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+          settings={user.preferences.settings || { contributeByDefault: false }}
+          onSave={handleSaveSettings}
+          graphicTypes={graphicTypes}
+          aspectRatios={aspectRatios}
+        />
+      )}
 
       {/* Help Modal */}
       {isHelpOpen && (

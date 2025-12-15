@@ -55,6 +55,13 @@ export interface UserPreferences {
   graphicTypes: GraphicType[];
   aspectRatios: AspectRatioOption[];
   geminiApiKey?: string;
+  settings?: UserSettings; // New settings field
+}
+
+export interface UserSettings {
+  contributeByDefault: boolean;
+  defaultGraphicTypeId?: string;
+  defaultAspectRatio?: string;
 }
 
 export interface User {
@@ -62,4 +69,15 @@ export interface User {
   name: string;
   email: string;
   preferences: UserPreferences;
+}
+
+export interface CatalogItem {
+  id: string;
+  type: 'style' | 'color' | 'type';
+  data: VisualStyle | BrandColor | GraphicType;
+  authorId: string;
+  authorName: string;
+  votes: number;
+  voters: string[]; // List of user IDs who voted
+  timestamp: number;
 }

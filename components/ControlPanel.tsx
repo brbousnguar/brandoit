@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { GenerationConfig, BrandColor, VisualStyle, GraphicType, AspectRatioOption } from '../types';
+import { GenerationConfig, BrandColor, VisualStyle, GraphicType, AspectRatioOption, User } from '../types';
 import { analyzeImageForOption } from '../services/geminiService';
+import { catalogService } from '../services/catalogService';
 import { 
   Palette, 
   PenTool, 
@@ -15,7 +16,8 @@ import {
   Pencil,
   UploadCloud,
   Loader2,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Globe
 } from 'lucide-react';
 
 interface ControlPanelProps {
@@ -37,6 +39,7 @@ interface ControlPanelProps {
   };
   onUploadGuidelines: (file: File) => void;
   isAnalyzing: boolean;
+  user: User | null; // Pass user for contribution
 }
 
 // Modal Component
@@ -75,7 +78,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   options,
   setOptions,
   onUploadGuidelines,
-  isAnalyzing
+  isAnalyzing,
+  user
 }) => {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -90,6 +94,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   const [newItemDescription, setNewItemDescription] = useState('');
   const [newItemColors, setNewItemColors] = useState<string[]>([]);
   const [newItemValue, setNewItemValue] = useState(''); // Used for aspect ratio value
+  const [contributeToCatalog, setContributeToCatalog] = useState(false);
   
   const [isAnalysingOption, setIsAnalysingOption] = useState(false);
   const optionFileInputRef = useRef<HTMLInputElement>(null);
@@ -111,6 +116,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
     setNewItemDescription('');
     setNewItemColors(['#000000']); // Default color
     setNewItemValue('');
+    // Default to user preference for contribution, defaulting to false if not set
+    setContributeToCatalog(user?.preferences?.settings?.contributeByDefault ?? false);
   };
 
   const handleEdit = (e: React.MouseEvent, type: 'type' | 'style' | 'color' | 'size', item: any) => {
@@ -201,47 +208,50 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // --- Handlers for Adding/Editing Custom Options ---
-
-  const handleSaveItem = () => {
+  const handleSaveItem = async () => {
     if (!newItemName) return;
 
+    let newItem: any = null;
+    let typeForCatalog: 'style' | 'color' | 'type' | null = null;
+
     if (modalType === 'type') {
+      const newId = editingId || `custom-type-${Date.now()}`;
+      const newType: GraphicType = { id: newId, name: newItemName };
+      
       if (editingId) {
-        setOptions.setGraphicTypes(prev => prev.map(item => 
-          item.id === editingId ? { ...item, name: newItemName } : item
-        ));
+        setOptions.setGraphicTypes(prev => prev.map(item => item.id === editingId ? { ...item, name: newItemName } : item));
       } else {
-        const newId = `custom-type-${Date.now()}`;
-        const newType: GraphicType = { id: newId, name: newItemName };
         setOptions.setGraphicTypes(prev => [...prev, newType]);
         handleChange('graphicTypeId', newId);
+        newItem = newType;
+        typeForCatalog = 'type';
       }
     } 
     else if (modalType === 'style') {
+      const newId = editingId || `custom-style-${Date.now()}`;
+      const newStyle: VisualStyle = { id: newId, name: newItemName, description: newItemDescription || newItemName };
+      
       if (editingId) {
-        setOptions.setVisualStyles(prev => prev.map(item => 
-          item.id === editingId ? { ...item, name: newItemName, description: newItemDescription || newItemName } : item
-        ));
+        setOptions.setVisualStyles(prev => prev.map(item => item.id === editingId ? { ...item, name: newItemName, description: newItemDescription || newItemName } : item));
       } else {
-        const newId = `custom-style-${Date.now()}`;
-        const newStyle: VisualStyle = { id: newId, name: newItemName, description: newItemDescription || newItemName };
         setOptions.setVisualStyles(prev => [...prev, newStyle]);
         handleChange('visualStyleId', newId);
+        newItem = newStyle;
+        typeForCatalog = 'style';
       }
     }
     else if (modalType === 'color') {
       const colors = newItemColors.length > 0 ? newItemColors : ['#888888'];
+      const newId = editingId || `custom-color-${Date.now()}`;
+      const newColor: BrandColor = { id: newId, name: newItemName, colors };
 
       if (editingId) {
-        setOptions.setBrandColors(prev => prev.map(item => 
-          item.id === editingId ? { ...item, name: newItemName, colors } : item
-        ));
+        setOptions.setBrandColors(prev => prev.map(item => item.id === editingId ? { ...item, name: newItemName, colors } : item));
       } else {
-        const newId = `custom-color-${Date.now()}`;
-        const newColor: BrandColor = { id: newId, name: newItemName, colors };
         setOptions.setBrandColors(prev => [...prev, newColor]);
         handleChange('colorSchemeId', newId);
+        newItem = newColor;
+        typeForCatalog = 'color';
       }
     }
     else if (modalType === 'size') {
@@ -259,6 +269,16 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         setOptions.setAspectRatios(prev => [...prev, newOption]);
         handleChange('aspectRatio', newOption.value);
       }
+    }
+
+    // Handle Contribution (Only for new items, not edits, and only if user is logged in)
+    if (!editingId && contributeToCatalog && newItem && typeForCatalog && user) {
+        try {
+            await catalogService.addToCatalog(typeForCatalog, newItem, user.id, user.name);
+            console.log("Contributed to catalog!");
+        } catch (e) {
+            console.error("Failed to contribute:", e);
+        }
     }
 
     closeModal();
@@ -705,6 +725,23 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                 className={inputClass}
               />
             </div>
+          )}
+
+          {/* Contribution Checkbox */}
+          {!editingId && user && modalType !== 'size' && (
+             <div className="flex items-center gap-2 pt-2 border-t border-gray-100 dark:border-[#30363d] mt-4">
+                <input 
+                  type="checkbox" 
+                  id="contribute" 
+                  checked={contributeToCatalog}
+                  onChange={(e) => setContributeToCatalog(e.target.checked)}
+                  className="rounded border-gray-300 text-brand-teal focus:ring-brand-teal w-4 h-4 cursor-pointer"
+                />
+                <label htmlFor="contribute" className="text-sm text-slate-600 dark:text-slate-300 cursor-pointer select-none flex items-center gap-1.5">
+                   <Globe size={14} className="text-brand-teal" />
+                   Contribute to Community Catalog
+                </label>
+             </div>
           )}
 
           <div className="pt-4 flex gap-3">
