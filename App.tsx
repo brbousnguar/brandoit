@@ -41,10 +41,9 @@ const App: React.FC = () => {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isCatalogOpen, setIsCatalogOpen] = useState(false);
+  const [catalogMode, setCatalogMode] = useState<'style' | 'color' | null>(null);
   
   // Auth State
-  const [user, setUser] = useState<User | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'signup'>('login');
@@ -319,7 +318,7 @@ const App: React.FC = () => {
       }
       setConfig(prev => ({ ...prev, graphicTypeId: newType.id }));
     }
-    setIsCatalogOpen(false);
+    setCatalogMode(null);
   };
 
   return (
@@ -338,12 +337,18 @@ const App: React.FC = () => {
           </div>
           
           {/* Navigation Links */}
-          <nav className="hidden md:flex items-center gap-4 ml-4">
+          <nav className="hidden md:flex items-center gap-2 ml-4">
             <button 
-              onClick={() => setIsCatalogOpen(true)}
+              onClick={() => setCatalogMode('style')}
               className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-brand-teal dark:hover:text-brand-teal transition-colors flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-[#21262d]"
             >
-              <Globe size={16} /> Catalog
+              <PenTool size={16} /> Styles
+            </button>
+            <button 
+              onClick={() => setCatalogMode('color')}
+              className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-brand-teal dark:hover:text-brand-teal transition-colors flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-[#21262d]"
+            >
+              <Palette size={16} /> Colors
             </button>
           </nav>
         </div>
@@ -528,10 +533,11 @@ const App: React.FC = () => {
 
       {/* Catalog Modal */}
       <CatalogModal
-        isOpen={isCatalogOpen}
-        onClose={() => setIsCatalogOpen(false)}
+        isOpen={catalogMode !== null}
+        onClose={() => setCatalogMode(null)}
         onImport={handleImportFromCatalog}
         userId={user?.id}
+        category={catalogMode || 'style'}
       />
 
       {/* Help Modal */}

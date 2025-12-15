@@ -26,9 +26,10 @@ export const seedCatalog = async () => {
     await catalogService.addToCatalog('color', color, adminId, adminName);
   }
 
-  for (const type of GRAPHIC_TYPES) {
-    await catalogService.addToCatalog('type', type, adminId, adminName);
-  }
+  // Types are no longer seeded or used in the public catalog as per request
+  // for (const type of GRAPHIC_TYPES) {
+  //   await catalogService.addToCatalog('type', type, adminId, adminName);
+  // }
 
   console.log("Catalog seeding complete.");
 };

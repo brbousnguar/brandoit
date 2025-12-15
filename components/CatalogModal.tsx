@@ -1,36 +1,36 @@
 import React, { useState, useEffect } from 'react';
 import { CatalogItem } from '../types';
 import { catalogService } from '../services/catalogService';
-import { X, ThumbsUp, Download, Layout, PenTool, Palette, Search } from 'lucide-react';
+import { X, ThumbsUp, Download, PenTool, Palette } from 'lucide-react';
 
 interface CatalogModalProps {
   isOpen: boolean;
   onClose: () => void;
   onImport: (item: CatalogItem) => void;
   userId?: string;
+  category: 'style' | 'color';
 }
 
 export const CatalogModal: React.FC<CatalogModalProps> = ({
   isOpen,
   onClose,
   onImport,
-  userId
+  userId,
+  category
 }) => {
   const [items, setItems] = useState<CatalogItem[]>([]);
-  const [filter, setFilter] = useState<'all' | 'style' | 'color' | 'type'>('all');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       loadCatalog();
     }
-  }, [isOpen, filter]);
+  }, [isOpen, category]);
 
   const loadCatalog = async () => {
     setLoading(true);
     try {
-      const type = filter === 'all' ? undefined : filter;
-      const data = await catalogService.getCatalogItems(type);
+      const data = await catalogService.getCatalogItems(category);
       setItems(data);
     } catch (e) {
       console.error("Failed to load catalog", e);
@@ -71,34 +71,18 @@ export const CatalogModal: React.FC<CatalogModalProps> = ({
         
         {/* Header */}
         <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-[#30363d]">
-          <div>
-            <h3 className="text-xl font-bold">Community Catalog</h3>
-            <p className="text-sm text-slate-500">Discover styles, palettes, and types created by others.</p>
+          <div className="flex items-center gap-3">
+             <div className="p-2 bg-gray-100 dark:bg-[#21262d] rounded-lg text-brand-teal">
+                {category === 'style' ? <PenTool size={24} /> : <Palette size={24} />}
+             </div>
+             <div>
+                <h3 className="text-xl font-bold capitalize">Community {category}s</h3>
+                <p className="text-sm text-slate-500">Discover {category}s created by others.</p>
+             </div>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-900 dark:hover:text-white p-1 rounded-md hover:bg-gray-100 dark:hover:bg-[#30363d] transition-colors">
             <X size={24} />
           </button>
-        </div>
-
-        {/* Tabs / Filter */}
-        <div className="flex gap-2 p-4 border-b border-gray-200 dark:border-[#30363d] bg-gray-50 dark:bg-[#0d1117]/50">
-          {(['all', 'style', 'color', 'type'] as const).map(f => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
-                filter === f 
-                  ? 'bg-brand-teal text-white shadow-md' 
-                  : 'bg-white dark:bg-[#21262d] text-slate-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-[#30363d]'
-              }`}
-            >
-              {f === 'all' && <Search size={14} />}
-              {f === 'style' && <PenTool size={14} />}
-              {f === 'color' && <Palette size={14} />}
-              {f === 'type' && <Layout size={14} />}
-              <span className="capitalize">{f === 'all' ? 'All Items' : f + 's'}</span>
-            </button>
-          ))}
         </div>
 
         {/* Content */}
@@ -109,7 +93,7 @@ export const CatalogModal: React.FC<CatalogModalProps> = ({
             </div>
           ) : items.length === 0 ? (
             <div className="text-center py-20 text-slate-500">
-              <p>No items found in the catalog yet.</p>
+              <p>No {category}s found in the catalog yet.</p>
               <p className="text-xs mt-2">Be the first to contribute!</p>
             </div>
           ) : (
@@ -117,19 +101,12 @@ export const CatalogModal: React.FC<CatalogModalProps> = ({
               {items.map(item => (
                 <div key={item.id} className="bg-white dark:bg-[#161b22] border border-gray-200 dark:border-[#30363d] rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow flex flex-col">
                   <div className="flex justify-between items-start mb-3">
-                    <div className="flex items-center gap-2">
-                      <div className="p-1.5 rounded-md bg-gray-100 dark:bg-[#21262d] text-slate-500">
-                        {item.type === 'style' && <PenTool size={16} />}
-                        {item.type === 'color' && <Palette size={16} />}
-                        {item.type === 'type' && <Layout size={16} />}
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-sm text-slate-900 dark:text-white line-clamp-1">{(item.data as any).name}</h4>
-                        <p className="text-[10px] text-slate-500">by {item.authorName}</p>
-                      </div>
+                    <div>
+                      <h4 className="font-bold text-sm text-slate-900 dark:text-white line-clamp-1">{(item.data as any).name}</h4>
+                      <p className="text-[10px] text-slate-500">by {item.authorName}</p>
                     </div>
                     {item.type === 'color' && (
-                      <div className="flex gap-0.5 h-4 w-16 rounded-sm overflow-hidden ring-1 ring-black/5">
+                      <div className="flex gap-0.5 h-6 w-20 rounded-sm overflow-hidden ring-1 ring-black/5">
                         {(item.data as any).colors.map((c: string, i: number) => (
                           <div key={i} className="flex-1 h-full" style={{ backgroundColor: c }} />
                         ))}
@@ -163,7 +140,7 @@ export const CatalogModal: React.FC<CatalogModalProps> = ({
                       onClick={() => onImport(item)}
                       className="flex items-center gap-1.5 text-xs font-bold text-white bg-brand-teal hover:bg-teal-600 px-3 py-1.5 rounded-lg shadow-sm transition-colors"
                     >
-                      <Download size={14} /> Add to My Library
+                      <Download size={14} /> Add
                     </button>
                   </div>
                 </div>
