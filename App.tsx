@@ -142,7 +142,8 @@ const App: React.FC = () => {
     setIsGenerating(true);
     setError(null);
     try {
-      const result = await generateGraphic(config, context);
+      const customKey = user?.preferences.geminiApiKey;
+      const result = await generateGraphic(config, context, customKey);
       setGeneratedImage(result);
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred.');
@@ -157,7 +158,8 @@ const App: React.FC = () => {
     setIsGenerating(true);
     setError(null);
     try {
-      const result = await refineGraphic(generatedImage, refinementText, config, context);
+      const customKey = user?.preferences.geminiApiKey;
+      const result = await refineGraphic(generatedImage, refinementText, config, context, customKey);
       setGeneratedImage(result);
     } catch (err: any) {
       setError(err.message || 'Failed to refine image.');
@@ -170,7 +172,8 @@ const App: React.FC = () => {
     setIsAnalyzing(true);
     setError(null);
     try {
-      const result = await analyzeBrandGuidelines(file);
+      const customKey = user?.preferences.geminiApiKey;
+      const result = await analyzeBrandGuidelines(file, customKey);
       
       // Update state with new options, prepending them to the list
       const newColors: BrandColor[] = result.brandColors.map((c, i) => ({
@@ -245,7 +248,37 @@ const App: React.FC = () => {
                    <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-[#161b22] border border-gray-200 dark:border-[#30363d] rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
                       <div className="p-3 border-b border-gray-200 dark:border-[#30363d]">
                         <p className="text-xs text-slate-500 uppercase font-bold">Signed in as</p>
-                        <p className="text-sm font-medium truncate text-slate-900 dark:text-white">{user.email}</p>
+                          <p className="text-sm font-medium truncate text-slate-900 dark:text-white">{user.email}</p>
+                      </div>
+                      <div className="p-3 border-b border-gray-200 dark:border-[#30363d]">
+                        <label className="text-xs font-bold text-slate-500 uppercase block mb-1.5">
+                          Custom API Key
+                        </label>
+                        <input
+                          type="password"
+                          placeholder="Enter Gemini API Key..."
+                          value={user.preferences.geminiApiKey || ''}
+                          onChange={(e) => {
+                            const newKey = e.target.value;
+                            // Update local state immediately for UI responsiveness
+                            const updatedUser = { 
+                              ...user, 
+                              preferences: { ...user.preferences, geminiApiKey: newKey } 
+                            };
+                            setUser(updatedUser);
+                          }}
+                          onBlur={(e) => {
+                             // Save to Firestore when user clicks away
+                             authService.updateUserPreferences(user.id, {
+                               ...user.preferences,
+                               geminiApiKey: e.target.value
+                             });
+                          }}
+                          className="w-full text-xs p-2 rounded border border-gray-200 dark:border-[#30363d] bg-gray-50 dark:bg-[#0d1117] text-slate-900 dark:text-white focus:ring-1 focus:ring-brand-teal"
+                        />
+                        <p className="text-[10px] text-slate-400 mt-1">
+                          Using your own key removes rate limits.
+                        </p>
                       </div>
                       <button 
                         onClick={handleLogout}

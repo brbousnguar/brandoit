@@ -1,9 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { GenerationConfig, GeneratedImage, BrandColor, VisualStyle, GraphicType, BrandGuidelinesAnalysis } from "../types";
 
-// Initialize Gemini API
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 const NANO_BANANA_MODEL = 'gemini-2.5-flash-image';
 const ANALYSIS_MODEL = 'gemini-2.5-flash';
 
@@ -11,6 +8,13 @@ interface GenerationContext {
   brandColors: BrandColor[];
   visualStyles: VisualStyle[];
   graphicTypes: GraphicType[];
+}
+
+// Helper to get the client
+const getAiClient = (customKey?: string) => {
+  const key = customKey || import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+  if (!key) throw new Error("No API Key available. Please add one in Settings.");
+  return new GoogleGenAI({ apiKey: key });
 }
 
 /**
@@ -36,7 +40,8 @@ const constructFullPrompt = (config: GenerationConfig, context: GenerationContex
   `.trim();
 };
 
-export const generateGraphic = async (config: GenerationConfig, context: GenerationContext): Promise<GeneratedImage> => {
+export const generateGraphic = async (config: GenerationConfig, context: GenerationContext, customApiKey?: string): Promise<GeneratedImage> => {
+  const ai = getAiClient(customApiKey);
   const fullPrompt = constructFullPrompt(config, context);
 
   try {
@@ -63,8 +68,10 @@ export const refineGraphic = async (
   currentImage: GeneratedImage, 
   refinementPrompt: string, 
   config: GenerationConfig,
-  context: GenerationContext
+  context: GenerationContext,
+  customApiKey?: string
 ): Promise<GeneratedImage> => {
+  const ai = getAiClient(customApiKey);
   const colorScheme = context.brandColors.find(c => c.id === config.colorSchemeId);
   const style = context.visualStyles.find(s => s.id === config.visualStyleId);
   
@@ -110,7 +117,8 @@ export const refineGraphic = async (
 /**
  * Analyzes a brand guideline document (PDF or Image) to extract colors, styles, and types.
  */
-export const analyzeBrandGuidelines = async (file: File): Promise<BrandGuidelinesAnalysis> => {
+export const analyzeBrandGuidelines = async (file: File, customApiKey?: string): Promise<BrandGuidelinesAnalysis> => {
+  const ai = getAiClient(customApiKey);
   const base64Data = await fileToBase64(file);
   const mimeType = file.type;
 

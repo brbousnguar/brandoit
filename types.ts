@@ -48,6 +48,7 @@ export interface UserPreferences {
   visualStyles: VisualStyle[];
   graphicTypes: GraphicType[];
   aspectRatios: AspectRatioOption[];
+  geminiApiKey?: string;
 }
 
 export interface User {
