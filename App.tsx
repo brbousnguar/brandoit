@@ -5,7 +5,6 @@ import { AuthModal } from './components/AuthModal';
 import { RecentGenerations } from './components/RecentGenerations';
 import { GenerationConfig, GeneratedImage, BrandColor, VisualStyle, GraphicType, AspectRatioOption, User, GenerationHistoryItem } from './types';
 import { 
-  BRAND_COLORS, 
   VISUAL_STYLES, 
   GRAPHIC_TYPES, 
   ASPECT_RATIOS 
@@ -82,7 +81,6 @@ const App: React.FC = () => {
         // Handle logout / no user
         setUser(null);
         // Reset to defaults if logged out
-        setBrandColors(BRAND_COLORS);
         setVisualStyles(VISUAL_STYLES);
         setGraphicTypes(GRAPHIC_TYPES);
         setAspectRatios(ASPECT_RATIOS);
@@ -140,13 +138,11 @@ const App: React.FC = () => {
     setUser(null);
     setIsUserMenuOpen(false);
     // Reset to defaults
-    setBrandColors(BRAND_COLORS);
     setVisualStyles(VISUAL_STYLES);
     setGraphicTypes(GRAPHIC_TYPES);
     setAspectRatios(ASPECT_RATIOS);
     setConfig(prev => ({
       ...prev,
-      colorSchemeId: BRAND_COLORS[0].id,
       visualStyleId: VISUAL_STYLES[0].id,
       graphicTypeId: GRAPHIC_TYPES[0].id
     }));
