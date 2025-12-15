@@ -520,9 +520,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       )}
       
       <div className={`flex items-center gap-1`}>
-        {/* Only show edit/delete if user owns item AND it's not a system item. */}
-        {/* Admin note: Admins can toggle system status via the gear icon, but to edit content they might need to unset system first or we assume system items are immutable content-wise here. */}
-        {!item.isSystem && item.authorId === user?.id && (
+        {/* Show edit/delete if user owns item OR if user is admin */}
+        {((!item.isSystem && item.authorId === user?.id) || user?.username === 'planetoftheweb') && (
           <>
             <button 
               onClick={(e) => handleEdit(e, type, item)} 
