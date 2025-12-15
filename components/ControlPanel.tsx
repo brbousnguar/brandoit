@@ -21,7 +21,8 @@ import {
   Globe,
   Lock,
   Users,
-  Search
+  Search,
+  Shield
 } from 'lucide-react';
 
 interface ControlPanelProps {
@@ -223,12 +224,12 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                                         onClick={(e) => handleToggleDefault(e, type, item)}
                                         className={`p-1.5 rounded-md transition-colors ${
                                             item.scope === 'system' 
-                                                ? 'text-yellow-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20' 
-                                                : 'text-slate-300 hover:text-yellow-500 hover:bg-gray-100 dark:hover:bg-[#30363d]'
+                                                ? 'text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20' 
+                                                : 'text-slate-300 hover:text-blue-600 hover:bg-gray-100 dark:hover:bg-[#30363d]'
                                         }`}
-                                        title={item.scope === 'system' ? "Remove from Defaults" : "Make Default"}
+                                        title={item.scope === 'system' ? "Remove from System Defaults" : "Promote to System Default"}
                                     >
-                                        <Sparkles size={12} fill={item.scope === 'system' ? "currentColor" : "none"} />
+                                        <Shield size={12} fill={item.scope === 'system' ? "currentColor" : "none"} />
                                     </button>
                                 )}
 
