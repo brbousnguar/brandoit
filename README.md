@@ -8,12 +8,16 @@ An AI-powered brand design studio that helps you generate cohesive visual assets
 
 *   **🎨 AI Graphic Generation:** Create logos, icons, social media posts, and banners.
 *   **🧩 Brand Consistency:** Enforce color palettes and visual styles across all generated assets.
-*   **🛠️ Custom Resource Management:** Add your own custom styles, colors, and sizes.
-*   **📂 Normalized Database:** Uses a smart "spreadsheet-like" structure to manage System Defaults vs. User Custom items seamlessly.
-*   **🌍 Community Catalog:** Share your best styles and colors with the community, and vote on favorites.
+*   **👥 Teams & Collaboration:** Create teams and share styles/colors with your teammates.
+*   **🛠️ Smart Resource Management:** 
+    *   Organized dropdowns (Defaults, Private, Team, Public).
+    *   Search and filter capabilities.
+    *   Admin controls for System Defaults.
+*   **📂 Normalized Database:** Uses a smart "spreadsheet-like" structure to manage resources with flexible scoping (`private`, `public`, `team`, `system`).
+*   **🌍 Community Catalog:** Browse public items shared by other users.
 *   **💾 Cloud History:** Automatically saves your generation history to the cloud (Firestore).
-*   **🖼️ Image Analysis:** Upload an image to automatically extract its visual style or color palette.
-*   **👤 User Profiles:** Sign up/Login to sync preferences, history, and custom items across devices.
+*   **🖼️ Smart Analysis:** Upload brand guidelines (PDF/Image) to extract colors and styles with an interactive review modal.
+*   **👤 User Profiles:** Sign up with Email or Username. Sync preferences across devices.
 *   **🔑 BYOK (Bring Your Own Key):** Option to use your own Gemini API Key for higher rate limits.
 
 ## Tech Stack
@@ -72,15 +76,15 @@ An AI-powered brand design studio that helps you generate cohesive visual assets
 
 ## Database Structure
 
-The application uses a normalized Firestore structure:
+The application uses a normalized Firestore structure with **Row-Level Security** based on scopes:
 
 *   `/users/{userId}`: User profiles and private settings.
-*   `/users/{userId}/history`: Private generation history.
-*   `/public_catalog`: Shared community items.
-*   `/visual_styles`: System default styles + User custom styles.
-*   `/brand_colors`: System default palettes + User custom palettes.
-*   `/graphic_types`: System graphic types + User custom types.
-*   `/aspect_ratios`: System ratios + User custom ratios.
+*   `/teams/{teamId}`: Team metadata and member lists.
+*   `/visual_styles`, `/brand_colors`, `/graphic_types`, `/aspect_ratios`: 
+    *   Unified collections storing **all** items.
+    *   `scope`: Determines visibility (`system`, `private`, `public`, `team`).
+    *   `ownerId`: The user who created the item.
+    *   `teamId`: Required if scope is `team`.
 
 ## Building for Production
 

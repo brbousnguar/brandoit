@@ -15,7 +15,7 @@ This project is designed to be worked on by specialized AI agents.
 ### 1. Frontend Agent
 **Focus:** UI/UX, React Components, Styling.
 - Manages `App.tsx` layout and routing.
-- Maintains UI components in `/components` (`ControlPanel`, `ImageDisplay`, `CatalogPage`, `SettingsModal`).
+- Maintains UI components in `/components` (`ControlPanel`, `ImageDisplay`, `CatalogPage`, `SettingsModal`, `BrandAnalysisModal`).
 - Ensures responsive design and dark mode compatibility via Tailwind CSS.
 - Handles user interactions and visual feedback (loading states, toasts, modals).
 
@@ -24,11 +24,12 @@ This project is designed to be worked on by specialized AI agents.
 - **Authentication:** `authService.ts` (Firebase Auth & User Profile management).
 - **AI Integration:** `geminiService.ts` (Google Gemini API interactions).
 - **Data Persistence:** 
-    - `resourceService.ts` (Fetches unified System + Custom resources).
+    - `resourceService.ts` (Fetches unified System + Custom resources with scoping).
     - `historyService.ts` (Manages Generation History with Local/Remote sync).
-    - `catalogService.ts` (Community Catalog operations).
+    - `teamService.ts` (Manages Team creation and membership).
+    - `catalogService.ts` (Reads public resources for the community view).
 - **File Management:** `imageService.ts` (Firebase Storage uploads).
-- **Database Structure:** `structureSeeder.ts` (Ensures DB schema integrity).
+- **Database Structure:** `structureSeeder.ts` (Admin-only seeding of default assets).
 
 ### 3. DevOps Agent
 **Focus:** Build, Deployment, Configuration.
@@ -51,13 +52,13 @@ The project uses a **Normalized Database Structure** in Firestore to allow effic
 
 ### Collections
 1.  **`users`**: User profiles, preferences, and private generation history.
-2.  **`public_catalog`**: Shared community items (Styles, Colors) with voting.
+2.  **`teams`**: Team definitions and member lists.
 3.  **Resource Collections** (The "Spreadsheet" Tables):
     *   `graphic_types`
     *   `visual_styles`
     *   `brand_colors`
     *   `aspect_ratios`
-    *   *Note:* These collections store both System Defaults (`isSystem: true`) and User Custom Items (`authorId: "..."`).
+    *   *Note:* These collections store ALL items. Visibility is controlled by the `scope` field (`system`, `private`, `public`, `team`) and `ownerId` / `teamId`.
 
 ## Development Guidelines
 1.  **Service-Oriented:** Keep business logic out of UI components. Use services.
