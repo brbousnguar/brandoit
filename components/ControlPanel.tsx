@@ -209,14 +209,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-import { resourceService } from '../services/resourceService';
-
-// ... (inside component)
-
-import { resourceService } from '../services/resourceService';
-
-// ... (inside component)
-
   const handleSaveItem = async () => {
     if (!newItemName) return;
 
