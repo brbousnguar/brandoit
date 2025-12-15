@@ -138,7 +138,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
     if (user?.preferences?.settings?.contributeByDefault) {
         setItemScope('public');
     } else {
-        setItemScope('private');
+        setItemScope('public');
     }
   };
 
