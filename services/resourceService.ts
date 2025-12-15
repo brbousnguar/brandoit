@@ -7,7 +7,8 @@ import {
   addDoc, 
   doc,
   deleteDoc,
-  or
+  or,
+  and
 } from "firebase/firestore";
 import { BrandColor, VisualStyle, GraphicType, AspectRatioOption } from "../types";
 import { 
@@ -18,63 +19,102 @@ import {
 } from "../constants";
 
 // Helper to re-attach icons locally since we don't store them in DB
-// We map IDs/Values to the constants to find the icon
 const attachIcon = (item: any, collection: any[]) => {
   const match = collection.find(c => c.id === item.id || c.value === item.value);
   return match ? { ...item, icon: match.icon } : item;
 };
 
+// Helper to fetch resources with complex scoping
+// We want: 
+// 1. scope == 'system' (Everyone)
+// 2. scope == 'public' (Everyone)
+// 3. scope == 'private' AND authorId == userId (My Private)
+// 4. scope == 'team' AND teamId IN userTeamIds (My Teams)
+const fetchScopedResources = async (
+  collectionName: string, 
+  userId?: string, 
+  teamIds: string[] = []
+) => {
+  const ref = collection(db, collectionName);
+  const results: any[] = [];
+  
+  // A. Fetch Public & System items (Global)
+  // Note: Using 'in' for scope might be cleaner if indexes allow, 
+  // but 'or' queries are often restricted. 
+  // Safest: Query scopes separately or use a composite index.
+  // Let's try simple queries merged in memory to avoid index explosion for this prototype.
+  
+  try {
+      // 1. Global Items (System + Public)
+      const globalQuery = query(ref, where("scope", "in", ["system", "public"]));
+      const globalSnap = await getDocs(globalQuery);
+      globalSnap.forEach(d => results.push({ ...d.data(), id: d.id }));
+
+      if (userId) {
+          // 2. Private Items
+          const privateQuery = query(
+              ref, 
+              and(where("scope", "==", "private"), where("authorId", "==", userId))
+          );
+          const privateSnap = await getDocs(privateQuery);
+          privateSnap.forEach(d => results.push({ ...d.data(), id: d.id }));
+
+          // 3. Team Items
+          if (teamIds.length > 0) {
+             // Firestore 'in' limit is 10. If user has > 10 teams, this breaks.
+             // Taking first 10 for safety.
+             const safeTeamIds = teamIds.slice(0, 10);
+             const teamQuery = query(
+                 ref,
+                 and(where("scope", "==", "team"), where("teamId", "in", safeTeamIds))
+             );
+             const teamSnap = await getDocs(teamQuery);
+             teamSnap.forEach(d => results.push({ ...d.data(), id: d.id }));
+          }
+      }
+      
+      // Remove duplicates (in case of overlap, though scopes should be mutually exclusive)
+      const uniqueResults = Array.from(new Map(results.map(item => [item.id, item])).values());
+      return uniqueResults;
+
+  } catch (e) {
+      console.error(`Error fetching scoped resources for ${collectionName}:`, e);
+      return [];
+  }
+};
+
 export const resourceService = {
   
-  // Fetch System Defaults + User's Custom Items
-  getAllResources: async (userId?: string) => {
+  getAllResources: async (userId?: string, teamIds: string[] = []) => {
     try {
-      const results = {
-        graphicTypes: [] as GraphicType[],
-        aspectRatios: [] as AspectRatioOption[],
-        visualStyles: [] as VisualStyle[],
-        brandColors: [] as BrandColor[]
-      };
-
-      // 1. Graphic Types (System only mostly)
-      // For types/ratios, we can just use constants for speed if we don't expect custom ones
-      // But let's fetch from DB to be true to the request
-      const typesSnap = await getDocs(collection(db, "graphic_types"));
-      results.graphicTypes = typesSnap.docs.map(d => attachIcon({ ...d.data(), id: d.id }, GRAPHIC_TYPES));
-      if (results.graphicTypes.length === 0) results.graphicTypes = GRAPHIC_TYPES; // Fallback
+      // 1. Graphic Types
+      const dbTypes = await fetchScopedResources("graphic_types", userId, teamIds);
+      let graphicTypes = dbTypes.map(d => attachIcon(d, GRAPHIC_TYPES));
+      if (graphicTypes.length === 0) graphicTypes = GRAPHIC_TYPES; // Fallback
 
       // 2. Aspect Ratios
-      const ratiosSnap = await getDocs(collection(db, "aspect_ratios"));
-      results.aspectRatios = ratiosSnap.docs.map(d => attachIcon({ ...d.data(), id: d.id }, ASPECT_RATIOS));
-      if (results.aspectRatios.length === 0) results.aspectRatios = ASPECT_RATIOS; // Fallback
+      const dbRatios = await fetchScopedResources("aspect_ratios", userId, teamIds);
+      let aspectRatios = dbRatios.map(d => attachIcon(d, ASPECT_RATIOS));
+      if (aspectRatios.length === 0) aspectRatios = ASPECT_RATIOS; // Fallback
 
-      // 3. Visual Styles (System + User's)
-      const stylesRef = collection(db, "visual_styles");
-      let stylesQuery;
-      if (userId) {
-        stylesQuery = query(stylesRef, or(where("isSystem", "==", true), where("authorId", "==", userId)));
-      } else {
-        stylesQuery = query(stylesRef, where("isSystem", "==", true));
-      }
-      const stylesSnap = await getDocs(stylesQuery);
-      results.visualStyles = stylesSnap.docs.map(d => attachIcon({ ...d.data(), id: d.id }, VISUAL_STYLES));
+      // 3. Visual Styles
+      const dbStyles = await fetchScopedResources("visual_styles", userId, teamIds);
+      const visualStyles = dbStyles.map(d => attachIcon(d, VISUAL_STYLES));
       
-      // 4. Brand Colors (System + User's)
-      const colorsRef = collection(db, "brand_colors");
-      let colorsQuery;
-      if (userId) {
-        colorsQuery = query(colorsRef, or(where("isSystem", "==", true), where("authorId", "==", userId)));
-      } else {
-        colorsQuery = query(colorsRef, where("isSystem", "==", true));
-      }
-      const colorsSnap = await getDocs(colorsQuery);
-      results.brandColors = colorsSnap.docs.map(d => attachIcon({ ...d.data(), id: d.id }, BRAND_COLORS));
+      // 4. Brand Colors
+      const dbColors = await fetchScopedResources("brand_colors", userId, teamIds);
+      const brandColors = dbColors.map(d => attachIcon(d, BRAND_COLORS));
 
-      return results;
+      return {
+        graphicTypes: graphicTypes as GraphicType[],
+        aspectRatios: aspectRatios as AspectRatioOption[],
+        visualStyles: visualStyles as VisualStyle[],
+        brandColors: brandColors as BrandColor[]
+      };
 
     } catch (error) {
       console.error("Error fetching resources:", error);
-      // Fallback to constants if DB fails
+      // Fallback to constants
       return {
         graphicTypes: GRAPHIC_TYPES,
         aspectRatios: ASPECT_RATIOS,
@@ -84,15 +124,20 @@ export const resourceService = {
     }
   },
 
-  addCustomItem: async (collectionName: string, item: any, userId: string) => {
+  addCustomItem: async (collectionName: string, item: any, userId: string, scope: 'private'|'public'|'team' = 'private', teamId?: string) => {
     try {
       const docRef = await addDoc(collection(db, collectionName), {
         ...item,
-        isSystem: false,
+        scope, 
+        teamId: scope === 'team' ? teamId : null,
         authorId: userId,
-        createdAt: Date.now()
+        // Ensure legacy fields don't break things
+        isSystem: false, 
+        createdAt: Date.now(),
+        votes: 0,
+        voters: []
       });
-      return { ...item, id: docRef.id };
+      return { ...item, id: docRef.id, scope };
     } catch (error) {
       console.error(`Error adding to ${collectionName}:`, error);
       throw error;
