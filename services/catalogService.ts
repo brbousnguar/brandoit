@@ -37,9 +37,9 @@ export const catalogService = {
         timestamp: Date.now()
       });
       return docRef.id;
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error adding to catalog:", error);
-      throw new Error("Failed to share to catalog.");
+      throw new Error(error.message || "Failed to share to catalog.");
     }
   },
 
