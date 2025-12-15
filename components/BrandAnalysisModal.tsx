@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { X, Check, CheckCircle2, Circle, Palette, PenTool, Layout } from 'lucide-react';
+import { X, Check, CheckCircle2, Circle, Palette, PenTool, Layout, Globe, Lock } from 'lucide-react';
 import { BrandGuidelinesAnalysis } from '../types';
 
 interface BrandAnalysisModalProps {
   isOpen: boolean;
   onClose: () => void;
   analysisResult: BrandGuidelinesAnalysis | null;
-  onConfirm: (selected: BrandGuidelinesAnalysis) => void;
+  onConfirm: (selected: BrandGuidelinesAnalysis, scope: 'public' | 'private') => void;
 }
 
 export const BrandAnalysisModal: React.FC<BrandAnalysisModalProps> = ({
@@ -16,6 +16,8 @@ export const BrandAnalysisModal: React.FC<BrandAnalysisModalProps> = ({
   onConfirm
 }) => {
   if (!isOpen || !analysisResult) return null;
+
+  const [scope, setScope] = useState<'public' | 'private'>('public');
 
   const [selectedColors, setSelectedColors] = useState<number[]>(
     analysisResult.brandColors.map((_, i) => i) // Default all selected
@@ -40,7 +42,7 @@ export const BrandAnalysisModal: React.FC<BrandAnalysisModalProps> = ({
       brandColors: analysisResult.brandColors.filter((_, i) => selectedColors.includes(i)),
       visualStyles: analysisResult.visualStyles.filter((_, i) => selectedStyles.includes(i)),
       graphicTypes: analysisResult.graphicTypes.filter((_, i) => selectedTypes.includes(i))
-    });
+    }, scope);
     onClose();
   };
 
@@ -61,6 +63,48 @@ export const BrandAnalysisModal: React.FC<BrandAnalysisModalProps> = ({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-8">
+
+          {/* Scope Selection */}
+          <div className="bg-gray-50 dark:bg-[#0d1117] p-4 rounded-xl border border-gray-200 dark:border-[#30363d]">
+             <h4 className="font-bold text-sm uppercase tracking-wider text-slate-500 mb-3">Import Visibility</h4>
+             <div className="flex gap-4">
+               <button 
+                 onClick={() => setScope('public')}
+                 className={`flex-1 flex items-center gap-3 p-3 rounded-lg border transition-all ${
+                   scope === 'public' 
+                     ? 'bg-white dark:bg-[#161b22] border-brand-teal ring-1 ring-brand-teal shadow-sm' 
+                     : 'bg-transparent border-transparent hover:bg-white dark:hover:bg-[#161b22] hover:border-gray-200 dark:hover:border-[#30363d]'
+                 }`}
+               >
+                 <div className={`p-2 rounded-full ${scope === 'public' ? 'bg-teal-50 dark:bg-teal-900/20 text-brand-teal' : 'bg-gray-100 dark:bg-[#21262d] text-slate-400'}`}>
+                    <Globe size={18} />
+                 </div>
+                 <div className="text-left">
+                    <p className={`text-sm font-bold ${scope === 'public' ? 'text-slate-900 dark:text-white' : 'text-slate-500'}`}>Public</p>
+                    <p className="text-xs text-slate-400">Available to everyone in community</p>
+                 </div>
+                 {scope === 'public' && <CheckCircle2 size={18} className="ml-auto text-brand-teal" />}
+               </button>
+
+               <button 
+                 onClick={() => setScope('private')}
+                 className={`flex-1 flex items-center gap-3 p-3 rounded-lg border transition-all ${
+                   scope === 'private' 
+                     ? 'bg-white dark:bg-[#161b22] border-brand-teal ring-1 ring-brand-teal shadow-sm' 
+                     : 'bg-transparent border-transparent hover:bg-white dark:hover:bg-[#161b22] hover:border-gray-200 dark:hover:border-[#30363d]'
+                 }`}
+               >
+                 <div className={`p-2 rounded-full ${scope === 'private' ? 'bg-teal-50 dark:bg-teal-900/20 text-brand-teal' : 'bg-gray-100 dark:bg-[#21262d] text-slate-400'}`}>
+                    <Lock size={18} />
+                 </div>
+                 <div className="text-left">
+                    <p className={`text-sm font-bold ${scope === 'private' ? 'text-slate-900 dark:text-white' : 'text-slate-500'}`}>Private</p>
+                    <p className="text-xs text-slate-400">Only visible to you</p>
+                 </div>
+                 {scope === 'private' && <CheckCircle2 size={18} className="ml-auto text-brand-teal" />}
+               </button>
+             </div>
+          </div>
           
           {/* Colors Section */}
           {analysisResult.brandColors.length > 0 && (

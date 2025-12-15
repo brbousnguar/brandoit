@@ -236,14 +236,14 @@ const App: React.FC = () => {
     }
   };
 
-  const handleConfirmAnalysis = async (selected: BrandGuidelinesAnalysis) => {
+  const handleConfirmAnalysis = async (selected: BrandGuidelinesAnalysis, scope: 'public' | 'private') => {
     // 1. Prepare items with temporary IDs for immediate UI update
     const tempColors: BrandColor[] = selected.brandColors.map((c, i) => ({
         ...c,
         id: `analyzed-color-${Date.now()}-${i}`,
         authorId: user?.id || 'temp',
         authorName: user?.name || 'You',
-        scope: 'private',
+        scope: scope,
         votes: 0,
         voters: [],
         createdAt: Date.now()
@@ -254,7 +254,7 @@ const App: React.FC = () => {
         id: `analyzed-style-${Date.now()}-${i}`,
         authorId: user?.id || 'temp',
         authorName: user?.name || 'You',
-        scope: 'private',
+        scope: scope,
         votes: 0,
         voters: [],
         createdAt: Date.now()
@@ -265,7 +265,7 @@ const App: React.FC = () => {
         id: `analyzed-type-${Date.now()}-${i}`,
         authorId: user?.id || 'temp',
         authorName: user?.name || 'You',
-        scope: 'private',
+        scope: scope,
         votes: 0,
         voters: [],
         createdAt: Date.now()
@@ -287,20 +287,14 @@ const App: React.FC = () => {
     // 4. Persist to Firestore if user is logged in
     if (user) {
         try {
-            // We iterate and save each item. 
-            // Note: In a real app, we might want a batch operation or a bulk add endpoint.
-            // Also, we don't update the local IDs to the Firestore IDs here, which means 
-            // these items might be duplicated in the list if we re-fetch immediately, 
-            // but typical usage won't trigger immediate re-fetch until page reload or specific action.
-            
             for (const item of selected.brandColors) {
-                await resourceService.addCustomItem('brand_colors', { name: item.name, colors: item.colors }, user.id, 'private');
+                await resourceService.addCustomItem('brand_colors', { name: item.name, colors: item.colors }, user.id, scope);
             }
             for (const item of selected.visualStyles) {
-                await resourceService.addCustomItem('visual_styles', { name: item.name, description: item.description }, user.id, 'private');
+                await resourceService.addCustomItem('visual_styles', { name: item.name, description: item.description }, user.id, scope);
             }
             for (const item of selected.graphicTypes) {
-                await resourceService.addCustomItem('graphic_types', { name: item.name }, user.id, 'private');
+                await resourceService.addCustomItem('graphic_types', { name: item.name }, user.id, scope);
             }
         } catch (e) {
             console.error("Error saving analyzed items to Firestore", e);
