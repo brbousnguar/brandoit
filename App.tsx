@@ -103,28 +103,25 @@ const App: React.FC = () => {
   useEffect(() => {
     if (user) {
       authService.updateUserPreferences(user.id, {
-        brandColors,
         visualStyles,
         graphicTypes,
         aspectRatios
       });
     }
-  }, [brandColors, visualStyles, graphicTypes, aspectRatios, user]);
+  }, [visualStyles, graphicTypes, aspectRatios, user]);
 
   const handleLoginSuccess = async (loggedInUser: User) => {
     setUser(loggedInUser);
     // Load user preferences into state
-    setBrandColors(loggedInUser.preferences.brandColors);
-    setVisualStyles(loggedInUser.preferences.visualStyles);
-    setGraphicTypes(loggedInUser.preferences.graphicTypes);
-    setAspectRatios(loggedInUser.preferences.aspectRatios);
+    if (loggedInUser.preferences.visualStyles) setVisualStyles(loggedInUser.preferences.visualStyles);
+    if (loggedInUser.preferences.graphicTypes) setGraphicTypes(loggedInUser.preferences.graphicTypes);
+    if (loggedInUser.preferences.aspectRatios) setAspectRatios(loggedInUser.preferences.aspectRatios);
     
     // Ensure selected IDs in config are still valid, else reset to first
     setConfig(prev => ({
       ...prev,
-      colorSchemeId: loggedInUser.preferences.brandColors.find(c => c.id === prev.colorSchemeId) ? prev.colorSchemeId : loggedInUser.preferences.brandColors[0].id,
-      visualStyleId: loggedInUser.preferences.visualStyles.find(s => s.id === prev.visualStyleId) ? prev.visualStyleId : loggedInUser.preferences.visualStyles[0].id,
-      graphicTypeId: loggedInUser.preferences.graphicTypes.find(t => t.id === prev.graphicTypeId) ? prev.graphicTypeId : loggedInUser.preferences.graphicTypes[0].id,
+      visualStyleId: loggedInUser.preferences.visualStyles?.find(s => s.id === prev.visualStyleId) ? prev.visualStyleId : (loggedInUser.preferences.visualStyles?.[0]?.id || VISUAL_STYLES[0].id),
+      graphicTypeId: loggedInUser.preferences.graphicTypes?.find(t => t.id === prev.graphicTypeId) ? prev.graphicTypeId : (loggedInUser.preferences.graphicTypes?.[0]?.id || GRAPHIC_TYPES[0].id),
     }));
 
     // Merge local history if any
@@ -149,7 +146,7 @@ const App: React.FC = () => {
   };
 
   // Grouped context for easier passing
-  const context = { brandColors, visualStyles, graphicTypes, aspectRatios };
+  const context = { visualStyles, graphicTypes, aspectRatios };
 
   const handleGenerate = async () => {
     setIsGenerating(true);
