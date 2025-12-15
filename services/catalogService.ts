@@ -36,6 +36,23 @@ const getCollectionName = (type: 'style' | 'color' | 'type') => {
   }
 };
 
+// Helper to map docs
+const mapSnapshot = (snapshot: any, type: 'style' | 'color' | 'type'): CatalogItem[] => {
+  return snapshot.docs.map((doc: any) => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      type,
+      data: data,
+      authorId: data.authorId,
+      authorName: data.authorName,
+      votes: data.votes || 0,
+      voters: data.voters || [],
+      timestamp: data.createdAt || Date.now()
+    };
+  });
+};
+
 export const catalogService = {
   
   // NOTE: 'addToCatalog' is deprecated. 
@@ -46,28 +63,29 @@ export const catalogService = {
       const collectionName = getCollectionName(type);
       
       // Query items where scope == 'public'
-      const q = query(
-        collection(db, collectionName), 
-        where("scope", "==", "public"),
-        orderBy("votes", "desc"), 
-        limit(50)
-      );
-
-      const snapshot = await getDocs(q);
-      
-      return snapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          type,
-          data: data, // The raw data (e.g., BrandColor properties)
-          authorId: data.authorId,
-          authorName: data.authorName,
-          votes: data.votes || 0,
-          voters: data.voters || [],
-          timestamp: data.createdAt || Date.now()
-        };
-      });
+      // Try with ordering first (requires index)
+      try {
+        const q = query(
+          collection(db, collectionName), 
+          where("scope", "==", "public"),
+          orderBy("votes", "desc"), 
+          limit(50)
+        );
+        const snapshot = await getDocs(q);
+        return mapSnapshot(snapshot, type);
+      } catch (indexError) {
+        console.warn("Index missing for ordered query, falling back to unordered", indexError);
+        // Fallback: Simple query without sorting (Firestore will require index for equality + sort)
+        const qFallback = query(
+          collection(db, collectionName), 
+          where("scope", "==", "public"),
+          limit(50)
+        );
+        const snapshot = await getDocs(qFallback);
+        const items = mapSnapshot(snapshot, type);
+        // Sort in memory
+        return items.sort((a, b) => b.votes - a.votes);
+      }
     } catch (error) {
       console.error("Error fetching catalog:", error);
       return [];
