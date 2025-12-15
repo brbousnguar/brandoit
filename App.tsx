@@ -16,6 +16,8 @@ import { generateGraphic, refineGraphic, analyzeBrandGuidelines } from './servic
 import { authService } from './services/authService';
 import { historyService } from './services/historyService';
 import { seedCatalog } from './services/seeder';
+import { seedStructures } from './services/structureSeeder'; // Import structure seeder
+import { resourceService } from './services/resourceService'; // Import resource service
 import { 
   AlertCircle, 
   Sun, 
@@ -50,57 +52,50 @@ const App: React.FC = () => {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
   // Application State for Options (allows adding/removing)
-  const [brandColors, setBrandColors] = useState<BrandColor[]>(BRAND_COLORS);
-  const [visualStyles, setVisualStyles] = useState<VisualStyle[]>(VISUAL_STYLES);
-  const [graphicTypes, setGraphicTypes] = useState<GraphicType[]>(GRAPHIC_TYPES);
-  const [aspectRatios, setAspectRatios] = useState<AspectRatioOption[]>(ASPECT_RATIOS);
+  const [brandColors, setBrandColors] = useState<BrandColor[]>([]);
+  const [visualStyles, setVisualStyles] = useState<VisualStyle[]>([]);
+  const [graphicTypes, setGraphicTypes] = useState<GraphicType[]>([]);
+  const [aspectRatios, setAspectRatios] = useState<AspectRatioOption[]>([]);
 
   // Configuration State
   const [config, setConfig] = useState<GenerationConfig>({
     prompt: '',
-    colorSchemeId: BRAND_COLORS[0].id,
-    visualStyleId: VISUAL_STYLES[0].id,
-    graphicTypeId: GRAPHIC_TYPES[0].id,
-    aspectRatio: ASPECT_RATIOS[0].value
+    colorSchemeId: '', // Initial empty
+    visualStyleId: '',
+    graphicTypeId: '',
+    aspectRatio: ''
   });
 
-  const [generatedImage, setGeneratedImage] = useState<GeneratedImage | null>(null);
-  const [history, setHistory] = useState<GenerationHistoryItem[]>([]);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Load Resources (Structures)
+  const loadResources = async (userId?: string) => {
+    const resources = await resourceService.getAllResources(userId);
+    setBrandColors(resources.brandColors);
+    setVisualStyles(resources.visualStyles);
+    setGraphicTypes(resources.graphicTypes);
+    setAspectRatios(resources.aspectRatios);
 
-  // Load history on mount or user change
+    // Set initial config if empty
+    setConfig(prev => ({
+        ...prev,
+        colorSchemeId: prev.colorSchemeId || resources.brandColors[0]?.id || '',
+        visualStyleId: prev.visualStyleId || resources.visualStyles[0]?.id || '',
+        graphicTypeId: prev.graphicTypeId || resources.graphicTypes[0]?.id || '',
+        aspectRatio: prev.aspectRatio || resources.aspectRatios[0]?.value || ''
+    }));
+  };
+
   useEffect(() => {
-    const loadHistory = async () => {
-      const items = await historyService.getHistory(user);
-      setHistory(items);
-    };
-    loadHistory();
-  }, [user]);
-
-  // Check for session on mount
-  useEffect(() => {
-    // Set up real-time listener for auth state
-    const unsubscribe = authService.onAuthStateChange((currentUser) => {
-      if (currentUser) {
-        handleLoginSuccess(currentUser);
-      } else {
-        // Handle logout / no user
-        setUser(null);
-        // Reset to defaults if logged out
-        setBrandColors(BRAND_COLORS);
-        setVisualStyles(VISUAL_STYLES);
-        setGraphicTypes(GRAPHIC_TYPES);
-        setAspectRatios(ASPECT_RATIOS);
-      }
-    });
-
-    // Attempt to seed catalog once on mount (harmless if already seeded)
+    // Seed structures once on mount (harmless if already done)
+    seedStructures().then(() => loadResources(user?.id));
+    
+    // Seed catalog
     seedCatalog().catch(console.error);
+  }, []); // Run once on mount
 
-    return () => unsubscribe();
-  }, []);
+  // Reload resources when user changes (to get their custom items)
+  useEffect(() => {
+    loadResources(user?.id);
+  }, [user?.id]);
 
   // Effect to toggle body class
   useEffect(() => {
@@ -114,31 +109,24 @@ const App: React.FC = () => {
   // Sync preferences to Auth Service when they change AND a user is logged in
   useEffect(() => {
     if (user) {
+      // Only sync settings/API key now. Custom items are saved directly via resourceService.
       authService.updateUserPreferences(user.id, {
-        brandColors,
-        visualStyles,
-        graphicTypes,
-        aspectRatios
+        brandColors: [], // Ignored by new authService logic
+        visualStyles: [],
+        graphicTypes: [],
+        aspectRatios: [],
+        geminiApiKey: user.preferences.geminiApiKey,
+        settings: user.preferences.settings
       });
     }
-  }, [brandColors, visualStyles, graphicTypes, aspectRatios, user]);
+  }, [user?.preferences.settings, user?.preferences.geminiApiKey, user]); // Only trigger on settings change
 
   const handleLoginSuccess = async (loggedInUser: User) => {
     setUser(loggedInUser);
-    // Load user preferences into state
-    setBrandColors(loggedInUser.preferences.brandColors);
-    setVisualStyles(loggedInUser.preferences.visualStyles);
-    setGraphicTypes(loggedInUser.preferences.graphicTypes);
-    setAspectRatios(loggedInUser.preferences.aspectRatios);
+    // Resources are loaded via the useEffect([user?.id]) hook now
     
-    // Ensure selected IDs in config are still valid, else reset to first
-    setConfig(prev => ({
-      ...prev,
-      colorSchemeId: loggedInUser.preferences.brandColors.find(c => c.id === prev.colorSchemeId) ? prev.colorSchemeId : loggedInUser.preferences.brandColors[0].id,
-      visualStyleId: loggedInUser.preferences.visualStyles.find(s => s.id === prev.visualStyleId) ? prev.visualStyleId : loggedInUser.preferences.visualStyles[0].id,
-      graphicTypeId: loggedInUser.preferences.graphicTypes.find(t => t.id === prev.graphicTypeId) ? prev.graphicTypeId : loggedInUser.preferences.graphicTypes[0].id,
-    }));
-
+    // Ensure selected IDs in config are still valid... (Logic handled in loadResources mostly)
+    
     // Merge local history if any
     await historyService.mergeLocalToRemote(loggedInUser.id);
     const updatedHistory = await historyService.getHistory(loggedInUser);
@@ -149,17 +137,7 @@ const App: React.FC = () => {
     authService.logout();
     setUser(null);
     setIsUserMenuOpen(false);
-    // Reset to defaults
-    setBrandColors(BRAND_COLORS);
-    setVisualStyles(VISUAL_STYLES);
-    setGraphicTypes(GRAPHIC_TYPES);
-    setAspectRatios(ASPECT_RATIOS);
-    setConfig(prev => ({
-      ...prev,
-      colorSchemeId: BRAND_COLORS[0].id,
-      visualStyleId: VISUAL_STYLES[0].id,
-      graphicTypeId: GRAPHIC_TYPES[0].id
-    }));
+    // Resources will reload defaults via useEffect([user?.id]) -> user is null
   };
 
   // Grouped context for easier passing

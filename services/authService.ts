@@ -30,10 +30,10 @@ const defaultPreferences: UserPreferences = {
 // Helper to remove non-serializable fields (like React components/icons) from preferences
 const sanitizePreferences = (prefs: UserPreferences): any => {
   return {
-    brandColors: prefs.brandColors.map(({ icon, ...rest }: any) => rest),
-    visualStyles: prefs.visualStyles.map(({ icon, ...rest }: any) => rest),
-    graphicTypes: prefs.graphicTypes.map(({ icon, ...rest }: any) => rest),
-    aspectRatios: prefs.aspectRatios.map(({ icon, ...rest }: any) => rest),
+    // Only save settings and API key. 
+    // Arrays (brandColors, etc.) are now managed via resourceService (normalized collections)
+    geminiApiKey: prefs.geminiApiKey,
+    settings: prefs.settings,
   };
 };
 
@@ -41,20 +41,15 @@ const sanitizePreferences = (prefs: UserPreferences): any => {
 const hydratePreferences = (savedPrefs: any): UserPreferences => {
   if (!savedPrefs) return defaultPreferences;
 
-  // Helper to re-attach icons from constants if ID matches, or keep as is
-  const mergeWithIcons = (savedItems: any[], defaultItems: any[]) => {
-    return savedItems.map(item => {
-      // Find matching default item to get its icon back
-      const match = defaultItems.find(d => d.id === item.id || d.value === item.value);
-      return match ? { ...item, icon: match.icon } : item;
-    });
-  };
-
   return {
-    brandColors: savedPrefs.brandColors || defaultPreferences.brandColors,
-    visualStyles: mergeWithIcons(savedPrefs.visualStyles || [], VISUAL_STYLES),
-    graphicTypes: mergeWithIcons(savedPrefs.graphicTypes || [], GRAPHIC_TYPES),
-    aspectRatios: mergeWithIcons(savedPrefs.aspectRatios || [], ASPECT_RATIOS),
+    // We don't load arrays from preferences anymore, but we need to return something 
+    // to satisfy the type. The App will fetch real data from resourceService.
+    brandColors: [], 
+    visualStyles: [],
+    graphicTypes: [],
+    aspectRatios: [],
+    geminiApiKey: savedPrefs.geminiApiKey,
+    settings: savedPrefs.settings || defaultPreferences.settings,
   };
 };
 
@@ -187,7 +182,10 @@ export const authService = {
   updateUserPreferences: async (userId: string, preferences: UserPreferences) => {
     try {
       const userRef = doc(db, "users", userId);
-      // Sanitize before saving to remove functions/React components
+      
+      // Only update specific fields (settings, api key)
+      // We do NOT want to overwrite the whole preferences object if it contains other stuff
+      // But based on our new sanitize, it only returns what we want.
       const cleanPreferences = sanitizePreferences(preferences);
       
       await updateDoc(userRef, {
