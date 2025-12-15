@@ -20,7 +20,8 @@ import {
   Image as ImageIcon,
   Globe,
   Lock,
-  Users
+  Users,
+  Search
 } from 'lucide-react';
 
 interface ControlPanelProps {
@@ -103,6 +104,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   const [selectedTeamId, setSelectedTeamId] = useState<string>('');
   const [userTeams, setUserTeams] = useState<Team[]>([]);
   
+  // Search State
+  const [searchTerm, setSearchTerm] = useState('');
+
   const [isAnalysingOption, setIsAnalysingOption] = useState(false);
   const optionFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -116,6 +120,11 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
     }
   }, [user]);
 
+  // Clear search when dropdown changes
+  useEffect(() => {
+    setSearchTerm('');
+  }, [activeDropdown]);
+
   const handleChange = (key: keyof GenerationConfig, value: string) => {
     setConfig(prev => ({ ...prev, [key]: value }));
     setActiveDropdown(null);
@@ -123,6 +132,42 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
   const toggleDropdown = (name: string) => {
     setActiveDropdown(activeDropdown === name ? null : name);
+  };
+
+  // Helper to filter and sort items
+  const getFilteredAndSortedItems = (items: any[]) => {
+    return items
+      .filter(item => {
+        if (!searchTerm) return true;
+        const term = searchTerm.toLowerCase();
+        const name = (item.name || item.label || '').toLowerCase();
+        const desc = (item.description || '').toLowerCase();
+        return name.includes(term) || desc.includes(term);
+      })
+      .sort((a, b) => {
+        // 1. System/Default First
+        const aIsSystem = a.isSystem || (!a.authorId && !a.scope);
+        const bIsSystem = b.isSystem || (!b.authorId && !b.scope);
+        
+        if (aIsSystem && !bIsSystem) return -1;
+        if (!aIsSystem && bIsSystem) return 1;
+        
+        // 2. Private/Team Second, Public Third
+        const getScopeOrder = (scope?: string) => {
+            if (scope === 'private') return 1;
+            if (scope === 'team') return 1;
+            if (scope === 'public') return 2;
+            return 3;
+        };
+        
+        const aScope = getScopeOrder(a.scope);
+        const bScope = getScopeOrder(b.scope);
+        
+        if (aScope !== bScope) return aScope - bScope;
+        
+        // 3. Alphabetical
+        return (a.name || a.label || '').localeCompare(b.name || b.label || '');
+      });
   };
 
   const openModal = (type: 'type' | 'style' | 'color' | 'size') => {
@@ -403,6 +448,22 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
     </div>
   );
 
+  const SearchInput = () => (
+    <div className="p-2 border-b border-gray-200 dark:border-[#30363d] sticky top-0 bg-white dark:bg-[#161b22] z-10">
+        <div className="relative">
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input 
+                type="text" 
+                placeholder="Search..." 
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                autoFocus
+                className="w-full pl-8 pr-3 py-1.5 text-xs bg-gray-50 dark:bg-[#0d1117] border border-gray-200 dark:border-[#30363d] rounded-md focus:outline-none focus:ring-1 focus:ring-brand-teal text-slate-900 dark:text-white"
+            />
+        </div>
+    </div>
+  );
+
   return (
     <>
       <div className="sticky top-[73px] z-40 w-full bg-white/95 dark:bg-[#0d1117]/95 backdrop-blur-md border-b border-gray-200 dark:border-[#30363d] p-4 transition-colors duration-200" ref={containerRef}>
@@ -422,8 +483,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               />
               {activeDropdown === 'type' && (
                 <div className="absolute top-full left-0 mt-2 w-64 bg-white dark:bg-[#161b22] border border-gray-200 dark:border-[#30363d] rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col">
+                  <SearchInput />
                   <div className="max-h-60 overflow-y-auto custom-scrollbar p-2 space-y-1">
-                    {options.graphicTypes.map(t => {
+                    {getFilteredAndSortedItems(options.graphicTypes).map(t => {
                       const Icon = t.icon || Layout;
                       const isSelected = config.graphicTypeId === t.id;
                       return (
@@ -455,8 +517,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               />
                {activeDropdown === 'style' && (
                 <div className="absolute top-full left-0 mt-2 w-72 bg-white dark:bg-[#161b22] border border-gray-200 dark:border-[#30363d] rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col">
+                  <SearchInput />
                   <div className="max-h-60 overflow-y-auto custom-scrollbar p-2 space-y-1">
-                    {options.visualStyles.map(s => {
+                    {getFilteredAndSortedItems(options.visualStyles).map(s => {
                       const Icon = s.icon || PenTool;
                       const isSelected = config.visualStyleId === s.id;
                       return (
@@ -492,8 +555,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               />
               {activeDropdown === 'color' && (
                 <div className="absolute top-full left-0 mt-2 w-64 bg-white dark:bg-[#161b22] border border-gray-200 dark:border-[#30363d] rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col">
+                  <SearchInput />
                   <div className="max-h-60 overflow-y-auto custom-scrollbar p-2 space-y-1">
-                    {options.brandColors.map(c => {
+                    {getFilteredAndSortedItems(options.brandColors).map(c => {
                       const isSelected = config.colorSchemeId === c.id;
                       return (
                         <div key={c.id} className="group p-2 hover:bg-gray-100 dark:hover:bg-[#21262d] rounded-md cursor-pointer" onClick={() => handleChange('colorSchemeId', c.id)}>
@@ -528,8 +592,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               />
               {activeDropdown === 'size' && (
                 <div className="absolute top-full left-0 mt-2 w-56 bg-white dark:bg-[#161b22] border border-gray-200 dark:border-[#30363d] rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col">
+                  <SearchInput />
                   <div className="max-h-60 overflow-y-auto custom-scrollbar p-1">
-                    {options.aspectRatios.map(r => {
+                    {getFilteredAndSortedItems(options.aspectRatios).map(r => {
                       const Icon = r.icon || Maximize;
                       const isSelected = config.aspectRatio === r.value;
                       return (
