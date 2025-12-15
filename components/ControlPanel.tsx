@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { GenerationConfig, BrandColor, VisualStyle, GraphicType, AspectRatioOption, User } from '../types';
 import { analyzeImageForOption } from '../services/geminiService';
 import { catalogService } from '../services/catalogService';
+import { resourceService } from '../services/resourceService';
 import { 
   Palette, 
   PenTool, 
@@ -207,6 +208,10 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+import { resourceService } from '../services/resourceService';
+
+// ... (inside component)
 
 import { resourceService } from '../services/resourceService';
 
