@@ -22,7 +22,7 @@ import {
   Lock,
   Users,
   Search,
-  Shield
+  Settings
 } from 'lucide-react';
 
 interface ControlPanelProps {
@@ -207,12 +207,22 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                                     <span className={`text-xs truncate ${isSelected ? 'text-brand-teal dark:text-brand-teal font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
                                         {item.name || item.label}
                                     </span>
+                                    {type === 'style' && item.description && (
+                                        <span className="text-[10px] text-slate-500 truncate pr-2">
+                                            {item.description}
+                                        </span>
+                                    )}
                                     {type === 'color' && (
-                                        <div className="flex h-1.5 w-16 rounded-sm overflow-hidden ring-1 ring-black/5 mt-1">
-                                            {item.colors.map((c: string, i: number) => (
-                                                <div key={i} className="flex-1 h-full" style={{ backgroundColor: c }} />
-                                            ))}
-                                        </div>
+                                        <>
+                                            <span className="text-[10px] text-slate-500 truncate pr-2">
+                                                {item.colors.join(', ')}
+                                            </span>
+                                            <div className="flex h-4 w-24 rounded-sm overflow-hidden ring-1 ring-black/5 mt-1">
+                                                {item.colors.map((c: string, i: number) => (
+                                                    <div key={i} className="flex-1 h-full" style={{ backgroundColor: c }} />
+                                                ))}
+                                            </div>
+                                        </>
                                     )}
                                 </div>
                             </div>
@@ -229,7 +239,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                                         }`}
                                         title={item.scope === 'system' ? "Remove from System Defaults" : "Promote to System Default"}
                                     >
-                                        <Shield size={12} fill={item.scope === 'system' ? "currentColor" : "none"} />
+                                        <Settings size={12} fill={item.scope === 'system' ? "currentColor" : "none"} />
                                     </button>
                                 )}
 
@@ -509,7 +519,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
          </div>
       )}
       
-      <div className={`flex items-center gap-1 transition-opacity ${isSelected ? 'mr-2' : ''}`}>
+      <div className={`flex items-center gap-1`}>
+        {/* Only show edit/delete if user owns item AND it's not a system item. */}
+        {/* Admin note: Admins can toggle system status via the gear icon, but to edit content they might need to unset system first or we assume system items are immutable content-wise here. */}
         {!item.isSystem && item.authorId === user?.id && (
           <>
             <button 
@@ -519,19 +531,17 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             >
               <Pencil size={12} />
             </button>
-            {!isSelected && (
-              <button 
-                onClick={(e) => handleDelete(e, type, item.id || item.value)} 
-                className="p-1.5 hover:bg-gray-100 dark:hover:bg-[#30363d] rounded-md text-slate-500 hover:text-red-500 dark:hover:text-red-400 transition-colors"
-                title="Delete"
-              >
-                <Trash2 size={12} />
-              </button>
-            )}
+            <button 
+              onClick={(e) => handleDelete(e, type, item.id || item.value)} 
+              className="p-1.5 hover:bg-gray-100 dark:hover:bg-[#30363d] rounded-md text-slate-500 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+              title="Delete"
+            >
+              <Trash2 size={12} />
+            </button>
           </>
         )}
       </div>
-      {isSelected && <Check size={14} className="text-brand-teal dark:text-brand-teal" />}
+      {isSelected && <Check size={14} className="text-brand-teal dark:text-brand-teal ml-1" />}
     </div>
   );
 
