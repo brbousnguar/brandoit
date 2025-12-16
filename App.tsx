@@ -149,10 +149,28 @@ const App: React.FC = () => {
     }
   }, [isDarkMode]);
 
+  // Restore user session on page load
+  useEffect(() => {
+    const unsubscribe = authService.onAuthStateChange(async (restoredUser) => {
+      if (restoredUser) {
+        setUser(restoredUser);
+        // Load history for restored user
+        const updatedHistory = await historyService.getHistory(restoredUser);
+        setHistory(updatedHistory);
+      } else {
+        setUser(null);
+        setHistory([]);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []); // Run once on mount
+
   // Sync preferences to Auth Service when they change AND a user is logged in
   useEffect(() => {
     if (user) {
       // Only sync settings/API key now. Custom items are saved directly via resourceService.
+      // This runs when preferences change, not on every user load
       authService.updateUserPreferences(user.id, {
         brandColors: [], // Ignored by new authService logic
         visualStyles: [],
@@ -160,9 +178,12 @@ const App: React.FC = () => {
         aspectRatios: [],
         geminiApiKey: user.preferences.geminiApiKey,
         settings: user.preferences.settings
+      }).catch(err => {
+        // Silently fail if it's just a sync issue (not a critical error)
+        console.warn("Failed to sync preferences:", err);
       });
     }
-  }, [user?.preferences.settings, user?.preferences.geminiApiKey, user]); // Only trigger on settings change
+  }, [user?.preferences.settings, user?.preferences.geminiApiKey]); // Only trigger on actual preference changes, not user object changes
 
   const handleLoginSuccess = async (loggedInUser: User) => {
     setUser(loggedInUser);
