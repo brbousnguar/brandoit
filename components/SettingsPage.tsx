@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { UserSettings, AspectRatioOption, GraphicType, User, Team } from '../types';
-import { ArrowLeft, Settings as SettingsIcon, Save, User as UserIcon, Camera, Loader2, Users, Plus, Mail, Key } from 'lucide-react';
+import { ArrowLeft, Settings as SettingsIcon, Save, User as UserIcon, Camera, Loader2, Users, Plus, Mail, Key, CheckCircle } from 'lucide-react';
 import { uploadProfileImage } from '../services/imageService';
 import { teamService } from '../services/teamService';
 import { authService } from '../services/authService';
@@ -28,6 +28,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Teams State
@@ -51,16 +53,26 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     setTeams(userTeams);
   };
 
-  const handleSave = () => {
-    // Save API key to Firestore
-    authService.updateUserPreferences(user.id, {
-      ...user.preferences,
-      geminiApiKey: apiKey
-    }).catch(err => {
-      console.error("Failed to save API key:", err);
-    });
+  const handleSave = async () => {
+    setIsSaving(true);
+    setSaveSuccess(false);
     
-    onSave(localSettings, { name, username, photoURL }, apiKey);
+    try {
+      // Save API key to Firestore
+      await authService.updateUserPreferences(user.id, {
+        ...user.preferences,
+        geminiApiKey: apiKey
+      });
+      
+      onSave(localSettings, { name, username, photoURL }, apiKey);
+      
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err) {
+      console.error("Failed to save settings:", err);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -123,15 +135,21 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         </div>
       </div>
 
+      {/* Success Toast */}
+      {saveSuccess && (
+        <div className="fixed top-20 right-6 z-50 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-800 dark:text-green-200 px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
+          <CheckCircle size={20} />
+          <span className="text-sm font-medium">Settings saved successfully!</span>
+        </div>
+      )}
+
       {/* Content */}
       <div className="max-w-7xl mx-auto px-6 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           
-          {/* LEFT COLUMN: Profile & Preferences */}
-          <div className="space-y-6">
-            
-            {/* API Key Section */}
-            <div className="bg-white dark:bg-[#161b22] border border-gray-200 dark:border-[#30363d] rounded-xl p-6 space-y-4">
+          {/* LEFT COLUMN: API Key */}
+          <div className="xl:col-span-1">
+            <div className="bg-white dark:bg-[#161b22] border border-gray-200 dark:border-[#30363d] rounded-xl p-6 space-y-4 sticky top-20">
               <h4 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
                 <Key size={14} /> API Configuration
               </h4>
@@ -152,6 +170,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                     }).then(() => {
                       // Update parent component's user state
                       onSave(localSettings, undefined, apiKey);
+                      setSaveSuccess(true);
+                      setTimeout(() => setSaveSuccess(false), 2000);
                     }).catch(err => {
                       console.error("Failed to save API key:", err);
                     });
@@ -164,69 +184,78 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 </p>
               </div>
             </div>
+          </div>
 
+          {/* MIDDLE COLUMN: Profile & Preferences */}
+          <div className="xl:col-span-1 space-y-6">
+            
             {/* Profile Section */}
             <div className="bg-white dark:bg-[#161b22] border border-gray-200 dark:border-[#30363d] rounded-xl p-6 space-y-4">
               <h4 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
                 <UserIcon size={14} /> Profile
               </h4>
               
-              {/* Photo Upload */}
-              <div className="flex flex-col items-center gap-3">
-                <div className="relative group">
-                  <div className="w-20 h-20 rounded-full overflow-hidden bg-gray-200 dark:bg-[#21262d] flex items-center justify-center border-2 border-gray-200 dark:border-[#30363d]">
-                    {isUploading ? (
-                      <Loader2 size={24} className="animate-spin text-brand-teal" />
-                    ) : photoURL ? (
-                      <img src={photoURL} alt={name} className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-2xl font-bold text-slate-400">{name.charAt(0).toUpperCase()}</span>
-                    )}
+              <div className="grid grid-cols-[auto_1fr] gap-4">
+                {/* Photo Upload - Left Side */}
+                <div className="flex flex-col items-center gap-2">
+                  <div className="relative group">
+                    <div className="w-20 h-20 rounded-full overflow-hidden bg-gray-200 dark:bg-[#21262d] flex items-center justify-center border-2 border-gray-200 dark:border-[#30363d]">
+                      {isUploading ? (
+                        <Loader2 size={24} className="animate-spin text-brand-teal" />
+                      ) : photoURL ? (
+                        <img src={photoURL} alt={name} className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-2xl font-bold text-slate-400">{name.charAt(0).toUpperCase()}</span>
+                      )}
+                    </div>
+                    <button 
+                      onClick={() => fileInputRef.current?.click()}
+                      className="absolute bottom-0 right-0 p-1.5 bg-brand-teal text-white rounded-full shadow-lg hover:bg-teal-600 transition-colors"
+                      title="Upload Photo"
+                    >
+                      <Camera size={14} />
+                    </button>
+                    <input 
+                      type="file" 
+                      ref={fileInputRef}
+                      className="hidden"
+                      accept="image/*"
+                      onChange={handleFileSelect}
+                    />
                   </div>
-                  <button 
-                    onClick={() => fileInputRef.current?.click()}
-                    className="absolute bottom-0 right-0 p-1.5 bg-brand-teal text-white rounded-full shadow-lg hover:bg-teal-600 transition-colors"
-                    title="Upload Photo"
-                  >
-                    <Camera size={14} />
-                  </button>
-                  <input 
-                    type="file" 
-                    ref={fileInputRef}
-                    className="hidden"
-                    accept="image/*"
-                    onChange={handleFileSelect}
-                  />
+                  {uploadError && <p className="text-xs text-red-500 text-center">{uploadError}</p>}
                 </div>
-                {uploadError && <p className="text-xs text-red-500">{uploadError}</p>}
-              </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                  Display Name
-                </label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full bg-gray-50 dark:bg-[#0d1117] border border-gray-200 dark:border-[#30363d] rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-brand-teal focus:outline-none text-slate-900 dark:text-white"
-                  placeholder="Your Name"
-                />
-              </div>
+                {/* Profile Fields - Right Side */}
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                      Display Name
+                    </label>
+                    <input
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="w-full bg-gray-50 dark:bg-[#0d1117] border border-gray-200 dark:border-[#30363d] rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-brand-teal focus:outline-none text-slate-900 dark:text-white"
+                      placeholder="Your Name"
+                    />
+                  </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                  Username (for Community)
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">@</span>
-                  <input
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="w-full bg-gray-50 dark:bg-[#0d1117] border border-gray-200 dark:border-[#30363d] rounded-lg py-2.5 pl-7 pr-3 text-sm focus:ring-1 focus:ring-brand-teal focus:outline-none text-slate-900 dark:text-white"
-                    placeholder="username"
-                  />
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                      Username (for Community)
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">@</span>
+                      <input
+                        type="text"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        className="w-full bg-gray-50 dark:bg-[#0d1117] border border-gray-200 dark:border-[#30363d] rounded-lg py-2.5 pl-7 pr-3 text-sm focus:ring-1 focus:ring-brand-teal focus:outline-none text-slate-900 dark:text-white"
+                        placeholder="username"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -288,7 +317,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
           </div>
 
           {/* RIGHT COLUMN: Teams Management */}
-          <div className="space-y-6">
+          <div className="xl:col-span-1 space-y-6">
             <div className="bg-white dark:bg-[#161b22] border border-gray-200 dark:border-[#30363d] rounded-xl p-6 space-y-4">
               <div className="flex items-center justify-between">
                 <h4 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
@@ -390,9 +419,22 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
           </button>
           <button 
             onClick={handleSave}
-            className="flex items-center gap-2 px-6 py-2.5 bg-brand-teal hover:bg-teal-600 text-white rounded-lg font-medium transition-colors text-sm shadow-lg shadow-brand-teal/20"
+            disabled={isSaving}
+            className="flex items-center gap-2 px-6 py-2.5 bg-brand-teal hover:bg-teal-600 text-white rounded-lg font-medium transition-colors text-sm shadow-lg shadow-brand-teal/20 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Save size={16} /> Save Changes
+            {isSaving ? (
+              <>
+                <Loader2 size={16} className="animate-spin" /> Saving...
+              </>
+            ) : saveSuccess ? (
+              <>
+                <CheckCircle size={16} /> Saved!
+              </>
+            ) : (
+              <>
+                <Save size={16} /> Save Changes
+              </>
+            )}
           </button>
         </div>
       </div>
