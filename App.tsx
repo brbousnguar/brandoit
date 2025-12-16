@@ -409,20 +409,22 @@ const App: React.FC = () => {
           </button>
           
           {/* Navigation Links */}
-          <nav className="hidden md:flex items-center gap-2 ml-4">
-            <button 
-              onClick={() => setCatalogMode('style')}
-              className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-brand-teal dark:hover:text-brand-teal transition-colors flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-[#21262d]"
-            >
-              <PenTool size={16} /> Styles
-            </button>
-            <button 
-              onClick={() => setCatalogMode('color')}
-              className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-brand-teal dark:hover:text-brand-teal transition-colors flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-[#21262d]"
-            >
-              <Palette size={16} /> Colors
-            </button>
-          </nav>
+          {user && (
+            <nav className="hidden md:flex items-center gap-2 ml-4">
+              <button 
+                onClick={() => setCatalogMode('style')}
+                className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-brand-teal dark:hover:text-brand-teal transition-colors flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-[#21262d]"
+              >
+                <PenTool size={16} /> Styles
+              </button>
+              <button 
+                onClick={() => setCatalogMode('color')}
+                className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-brand-teal dark:hover:text-brand-teal transition-colors flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-[#21262d]"
+              >
+                <Palette size={16} /> Colors
+              </button>
+            </nav>
+          )}
         </div>
 
         <div className="flex items-center gap-3">

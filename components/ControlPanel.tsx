@@ -574,7 +574,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               />
               {activeDropdown === 'type' && (
                 <div className="absolute top-full left-0 mt-2 w-64 bg-white dark:bg-[#161b22] border border-gray-200 dark:border-[#30363d] rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col">
-                  <SearchInput />
+                  {user && <SearchInput />}
                   <GroupedList 
                     items={options.graphicTypes} 
                     type="type" 
@@ -600,7 +600,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               />
                {activeDropdown === 'style' && (
                 <div className="absolute top-full left-0 mt-2 w-72 bg-white dark:bg-[#161b22] border border-gray-200 dark:border-[#30363d] rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col">
-                  <SearchInput />
+                  {user && <SearchInput />}
                   <GroupedList 
                     items={options.visualStyles} 
                     type="style" 
@@ -627,7 +627,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               />
               {activeDropdown === 'color' && (
                 <div className="absolute top-full left-0 mt-2 w-64 bg-white dark:bg-[#161b22] border border-gray-200 dark:border-[#30363d] rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col">
-                  <SearchInput />
+                  {user && <SearchInput />}
                   <GroupedList 
                     items={options.brandColors} 
                     type="color" 
@@ -653,7 +653,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               />
               {activeDropdown === 'size' && (
                 <div className="absolute top-full left-0 mt-2 w-56 bg-white dark:bg-[#161b22] border border-gray-200 dark:border-[#30363d] rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col">
-                  <SearchInput />
+                  {user && <SearchInput />}
                   <GroupedList 
                     items={options.aspectRatios} 
                     type="size" 
@@ -668,34 +668,38 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               )}
             </div>
 
-            <div className="h-8 w-px bg-gray-200 dark:bg-[#30363d] mx-1 hidden sm:block"></div>
+            {user && (
+              <>
+                <div className="h-8 w-px bg-gray-200 dark:bg-[#30363d] mx-1 hidden sm:block"></div>
 
-            {/* Upload Button */}
-             <div className="relative">
-               <input 
-                 type="file" 
-                 ref={fileInputRef} 
-                 className="hidden" 
-                 accept="image/*,application/pdf"
-                 onChange={handleFileChange}
-               />
-               <button
-                 onClick={() => fileInputRef.current?.click()}
-                 disabled={isAnalyzing}
-                 className="h-full px-3 py-2 border border-gray-200 dark:border-[#30363d] bg-white dark:bg-[#0d1117] hover:bg-gray-50 dark:hover:bg-[#161b22] text-slate-600 dark:text-slate-300 rounded-lg flex items-center gap-2 transition-all min-w-[100px] group"
-                 title="Upload Brand Guidelines (PDF or Image)"
-               >
-                  {isAnalyzing ? (
-                    <Loader2 size={16} className="animate-spin text-brand-teal dark:text-brand-teal" />
-                  ) : (
-                    <UploadCloud size={16} className="text-brand-teal dark:text-brand-teal" />
-                  )}
-                  <div className="flex flex-col text-left">
-                    <span className="text-[10px] uppercase font-bold text-slate-500 leading-none mb-0.5">Brand</span>
-                    <span className="text-xs font-medium">Upload</span>
-                  </div>
-               </button>
-             </div>
+                {/* Upload Button */}
+                 <div className="relative">
+                   <input 
+                     type="file" 
+                     ref={fileInputRef} 
+                     className="hidden" 
+                     accept="image/*,application/pdf"
+                     onChange={handleFileChange}
+                   />
+                   <button
+                     onClick={() => fileInputRef.current?.click()}
+                     disabled={isAnalyzing}
+                     className="h-full px-3 py-2 border border-gray-200 dark:border-[#30363d] bg-white dark:bg-[#0d1117] hover:bg-gray-50 dark:hover:bg-[#161b22] text-slate-600 dark:text-slate-300 rounded-lg flex items-center gap-2 transition-all min-w-[100px] group"
+                     title="Upload Brand Guidelines (PDF or Image)"
+                   >
+                      {isAnalyzing ? (
+                        <Loader2 size={16} className="animate-spin text-brand-teal dark:text-brand-teal" />
+                      ) : (
+                        <UploadCloud size={16} className="text-brand-teal dark:text-brand-teal" />
+                      )}
+                      <div className="flex flex-col text-left">
+                        <span className="text-[10px] uppercase font-bold text-slate-500 leading-none mb-0.5">Brand</span>
+                        <span className="text-xs font-medium">Upload</span>
+                      </div>
+                   </button>
+                 </div>
+              </>
+            )}
           </div>
 
           {/* 2. Prompt Input Area */}
