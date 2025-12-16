@@ -119,9 +119,18 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-[#0d1117] transition-colors duration-200">
-      {/* Header */}
-      <div className="bg-white dark:bg-[#161b22] border-b border-gray-200 dark:border-[#30363d] sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center gap-4">
+      {/* Success Toast */}
+      {saveSuccess && (
+        <div className="fixed top-20 right-6 z-50 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-800 dark:text-green-200 px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
+          <CheckCircle size={20} />
+          <span className="text-sm font-medium">Settings saved successfully!</span>
+        </div>
+      )}
+
+      {/* Content */}
+      <div className="max-w-7xl mx-auto px-6 py-8">
+        {/* Page Header */}
+        <div className="mb-8 flex items-center gap-4">
           <button 
             onClick={onBack}
             className="p-2 hover:bg-gray-100 dark:hover:bg-[#21262d] rounded-lg transition-colors"
@@ -133,18 +142,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Settings</h1>
           </div>
         </div>
-      </div>
 
-      {/* Success Toast */}
-      {saveSuccess && (
-        <div className="fixed top-20 right-6 z-50 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-800 dark:text-green-200 px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
-          <CheckCircle size={20} />
-          <span className="text-sm font-medium">Settings saved successfully!</span>
-        </div>
-      )}
-
-      {/* Content */}
-      <div className="max-w-7xl mx-auto px-6 py-8">
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           
           {/* LEFT COLUMN: API Key */}

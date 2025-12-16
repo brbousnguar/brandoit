@@ -419,7 +419,10 @@ const App: React.FC = () => {
       <header className="w-full flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-[#30363d] bg-white dark:bg-[#0d1117] sticky top-0 z-50">
         <div className="flex items-center gap-6">
           <button 
-            onClick={() => setCatalogMode(null)}
+            onClick={() => {
+              setCatalogMode(null);
+              setSettingsMode(false);
+            }}
             className="flex items-center gap-3 hover:opacity-80 transition-opacity focus:outline-none"
           >
             <img 
@@ -434,13 +437,19 @@ const App: React.FC = () => {
           {user && (
             <nav className="hidden md:flex items-center gap-2 ml-4">
               <button 
-                onClick={() => setCatalogMode('style')}
+                onClick={() => {
+                  setCatalogMode('style');
+                  setSettingsMode(false);
+                }}
                 className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-brand-teal dark:hover:text-brand-teal transition-colors flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-[#21262d]"
               >
                 <PenTool size={16} /> Styles
               </button>
               <button 
-                onClick={() => setCatalogMode('color')}
+                onClick={() => {
+                  setCatalogMode('color');
+                  setSettingsMode(false);
+                }}
                 className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-brand-teal dark:hover:text-brand-teal transition-colors flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-[#21262d]"
               >
                 <Palette size={16} /> Colors
