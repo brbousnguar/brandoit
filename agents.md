@@ -47,6 +47,7 @@ This project is designed to be worked on by specialized AI agents.
 - **Styling:** Tailwind CSS v4 + PostCSS
 - **Backend / BaaS:** Firebase (Auth, Firestore, Storage)
 - **AI Model:** Google Gemini 3 Pro Image Preview - STRICTLY ENFORCED
+- **Billing:** BYOK (Bring Your Own Key) only. System keys are disabled to prevent cost overruns.
 - **Icons:** Lucide React
 - **Fonts:** Mona Sans & Inter (Locally hosted)
 

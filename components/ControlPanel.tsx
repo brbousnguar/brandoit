@@ -335,7 +335,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
     setIsAnalysingOption(true);
     try {
-      const result = await analyzeImageForOption(file, modalType); 
+      const result = await analyzeImageForOption(file, modalType, user?.preferences?.geminiApiKey); 
       
       setNewItemName(result.name);
       if (modalType === 'style' && result.description) setNewItemDescription(result.description);

@@ -12,8 +12,9 @@ interface GenerationContext {
 
 // Helper to get the client
 const getAiClient = (customKey?: string) => {
-  const key = (customKey || import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '').trim();
-  if (!key) throw new Error("No API Key available. Please add one in Settings.");
+  // BYOK Enforcement: Only accept customKey.
+  const key = (customKey || '').trim();
+  if (!key) throw new Error("API Key Required. Please log in and add your Google Gemini API Key in Settings.");
   return new GoogleGenAI({ apiKey: key });
 }
 
