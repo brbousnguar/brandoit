@@ -570,6 +570,26 @@ const App: React.FC = () => {
           {/* Main Content Area */}
           <main className="flex-1 relative flex flex-col min-w-0 bg-gray-50 dark:bg-[#0d1117] transition-colors duration-200">
             
+            {/* API Key Requirement Banner */}
+            {(!user || !user.preferences.geminiApiKey) && (
+              <div className="w-full bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-800/50 px-6 py-4 text-center">
+                <p className="text-sm md:text-base text-blue-800 dark:text-blue-200 flex flex-col md:flex-row items-center justify-center gap-2 md:gap-3">
+                  <span className="p-1.5 bg-blue-100 dark:bg-blue-800/50 rounded-full shrink-0">
+                    <SettingsIcon size={18} />
+                  </span>
+                  {!user ? (
+                    <span>
+                      To use BranDoIt, please <strong>Log In</strong> and add your <strong>Google Gemini API Key</strong> in settings.
+                    </span>
+                  ) : (
+                    <span>
+                      To generate graphics, you must add your <strong>Google Gemini API Key</strong> in <button onClick={() => setIsSettingsOpen(true)} className="underline hover:text-blue-600 dark:hover:text-blue-100 font-bold decoration-2 underline-offset-2">Preferences</button>.
+                    </span>
+                  )}
+                </p>
+              </div>
+            )}
+
             {/* Error Toast */}
             {error && (
               <div className="absolute top-8 left-1/2 -translate-x-1/2 z-50 bg-red-100 dark:bg-red-900/90 text-red-800 dark:text-red-100 px-4 py-3 rounded-lg shadow-lg border border-red-200 dark:border-red-800 flex items-center gap-2 animate-bounce-in backdrop-blur-sm">

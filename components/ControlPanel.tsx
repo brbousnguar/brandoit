@@ -515,8 +515,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       )}
       
       <div className={`flex items-center gap-1`}>
-        {/* Show edit/delete if user owns item OR if user is admin */}
-        {((!item.isSystem && item.authorId === user?.id) || user?.username === 'planetoftheweb') && (
+        {/* Show edit/delete only if user is logged in AND (owns item OR is admin) */}
+        {user && ((!item.isSystem && item.authorId === user.id) || user.username === 'planetoftheweb') && (
           <>
             <button 
               onClick={(e) => handleEdit(e, type, item)} 
@@ -580,9 +580,11 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                     type="type" 
                     configKey="graphicTypeId" 
                   />
-                  <button onClick={() => openModal('type')} className="w-full text-left p-3 text-xs font-bold text-brand-teal dark:text-brand-teal border-t border-gray-200 dark:border-[#30363d] hover:bg-gray-100 dark:hover:bg-[#21262d] flex items-center gap-2 transition-colors">
-                     <Plus size={14} /> Add Custom Type
-                  </button>
+                  {user && (
+                    <button onClick={() => openModal('type')} className="w-full text-left p-3 text-xs font-bold text-brand-teal dark:text-brand-teal border-t border-gray-200 dark:border-[#30363d] hover:bg-gray-100 dark:hover:bg-[#21262d] flex items-center gap-2 transition-colors">
+                       <Plus size={14} /> Add Custom Type
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -604,9 +606,11 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                     type="style" 
                     configKey="visualStyleId" 
                   />
-                  <button onClick={() => openModal('style')} className="w-full text-left p-3 text-xs font-bold text-brand-teal dark:text-brand-teal border-t border-gray-200 dark:border-[#30363d] hover:bg-gray-100 dark:hover:bg-[#21262d] flex items-center gap-2 transition-colors">
-                     <Plus size={14} /> Add Custom Style
-                  </button>
+                  {user && (
+                    <button onClick={() => openModal('style')} className="w-full text-left p-3 text-xs font-bold text-brand-teal dark:text-brand-teal border-t border-gray-200 dark:border-[#30363d] hover:bg-gray-100 dark:hover:bg-[#21262d] flex items-center gap-2 transition-colors">
+                       <Plus size={14} /> Add Custom Style
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -629,9 +633,11 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                     type="color" 
                     configKey="colorSchemeId" 
                   />
-                  <button onClick={() => openModal('color')} className="w-full text-left p-3 text-xs font-bold text-brand-red dark:text-brand-orange border-t border-gray-200 dark:border-[#30363d] hover:bg-gray-100 dark:hover:bg-[#21262d] flex items-center gap-2 transition-colors">
-                     <Plus size={14} /> Add Custom Palette
-                  </button>
+                  {user && (
+                    <button onClick={() => openModal('color')} className="w-full text-left p-3 text-xs font-bold text-brand-red dark:text-brand-orange border-t border-gray-200 dark:border-[#30363d] hover:bg-gray-100 dark:hover:bg-[#21262d] flex items-center gap-2 transition-colors">
+                       <Plus size={14} /> Add Custom Palette
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -653,9 +659,11 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                     type="size" 
                     configKey="aspectRatio" 
                   />
-                  <button onClick={() => openModal('size')} className="w-full text-left p-3 text-xs font-bold text-brand-teal dark:text-brand-teal border-t border-gray-200 dark:border-[#30363d] hover:bg-gray-100 dark:hover:bg-[#21262d] flex items-center gap-2 transition-colors">
-                     <Plus size={14} /> Add Custom Size
-                  </button>
+                  {user && (
+                    <button onClick={() => openModal('size')} className="w-full text-left p-3 text-xs font-bold text-brand-teal dark:text-brand-teal border-t border-gray-200 dark:border-[#30363d] hover:bg-gray-100 dark:hover:bg-[#21262d] flex items-center gap-2 transition-colors">
+                       <Plus size={14} /> Add Custom Size
+                    </button>
+                  )}
                 </div>
               )}
             </div>
