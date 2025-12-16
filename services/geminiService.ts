@@ -1,7 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { GenerationConfig, GeneratedImage, BrandColor, VisualStyle, GraphicType, BrandGuidelinesAnalysis } from "../types";
 
-const NANO_BANANA_MODEL = 'gemini-2.0-flash-exp';
+const GENERATION_MODEL = 'imagen-3.0-generate-001';
 const ANALYSIS_MODEL = 'gemini-2.0-flash-exp';
 
 interface GenerationContext {
@@ -45,22 +45,32 @@ export const generateGraphic = async (config: GenerationConfig, context: Generat
   const fullPrompt = constructFullPrompt(config, context);
 
   try {
-    const response = await ai.models.generateContent({
-      model: NANO_BANANA_MODEL,
-      contents: {
-        parts: [{ text: fullPrompt }],
-      },
+    const response = await ai.models.generateImages({
+      model: GENERATION_MODEL,
+      prompt: fullPrompt,
       config: {
-        imageConfig: {
-          aspectRatio: config.aspectRatio,
-        }
-      },
+        numberOfImages: 1,
+        aspectRatio: config.aspectRatio,
+      }
     });
 
-    return extractImageFromResponse(response);
-  } catch (error) {
+    const imageBytes = response.generatedImages?.[0]?.image?.imageBytes;
+    if (!imageBytes) {
+      throw new Error("No image data found in response.");
+    }
+
+    const mimeType = 'image/png'; // Imagen usually returns PNG
+    const imageUrl = `data:${mimeType};base64,${imageBytes}`;
+
+    return {
+      imageUrl,
+      base64Data: imageBytes,
+      mimeType
+    };
+  } catch (error: any) {
     console.error("Gemini Generation Error:", error);
-    throw new Error("Failed to generate image. Please try again.");
+    // Handle specific API errors if needed
+    throw new Error(error.message || "Failed to generate image. Please try again.");
   }
 };
 
@@ -85,32 +95,36 @@ export const refineGraphic = async (
   `.trim();
 
   try {
-    const response = await ai.models.generateContent({
-      model: NANO_BANANA_MODEL,
-      contents: {
-        parts: [
-          {
-            inlineData: {
-              data: currentImage.base64Data,
-              mimeType: currentImage.mimeType,
-            },
-          },
-          {
-            text: fullRefinementPrompt,
-          },
-        ],
+    // Note: editImage usage depends on specific model capabilities. 
+    // If 'imagen-3.0-generate-001' supports edit, we use it.
+    // The params structure usually requires 'image' as input.
+    const response = await ai.models.editImage({
+      model: GENERATION_MODEL,
+      prompt: fullRefinementPrompt,
+      image: {
+        imageBytes: currentImage.base64Data
       },
       config: {
-        imageConfig: {
-          aspectRatio: config.aspectRatio,
-        }
-      },
+        numberOfImages: 1,
+      }
     });
 
-    return extractImageFromResponse(response);
-  } catch (error) {
+    const imageBytes = response.generatedImages?.[0]?.image?.imageBytes;
+    if (!imageBytes) {
+      throw new Error("No image data found in response.");
+    }
+
+    const mimeType = 'image/png';
+    const imageUrl = `data:${mimeType};base64,${imageBytes}`;
+
+    return {
+      imageUrl,
+      base64Data: imageBytes,
+      mimeType
+    };
+  } catch (error: any) {
     console.error("Gemini Refinement Error:", error);
-    throw new Error("Failed to refine image. Please try again.");
+    throw new Error(error.message || "Failed to refine image. Please try again.");
   }
 };
 
