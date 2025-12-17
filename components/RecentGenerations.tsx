@@ -115,6 +115,11 @@ export const RecentGenerations: React.FC<RecentGenerationsProps> = ({
     toastTimerRef.current = window.setTimeout(() => setToastMessage(null), 1800);
   };
 
+  const getModelLabel = (modelId?: string) => {
+    if (modelId === 'openai') return 'gpt-image';
+    return 'nano-banana';
+  };
+
   return (
     <div className="w-full max-w-7xl mx-auto px-4 md:px-6 py-8 animate-in fade-in slide-in-from-bottom-4 duration-500 delay-150 border-t border-gray-200 dark:border-[#30363d] mt-8">
       <div className="flex items-center justify-between mb-4">
@@ -266,6 +271,9 @@ export const RecentGenerations: React.FC<RecentGenerationsProps> = ({
                 </span>
                 <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 dark:bg-[#30363d] text-slate-600 dark:text-slate-300">
                   {getLabel(item.config.visualStyleId, options.visualStyles)}
+                </span>
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-brand-red/10 text-brand-red border border-brand-red/30">
+                  {getModelLabel(item.modelId)}
                 </span>
               </div>
               

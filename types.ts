@@ -49,6 +49,7 @@ export interface GenerationHistoryItem extends GeneratedImage {
   id: string;
   timestamp: number;
   config: GenerationConfig;
+  modelId?: string;
 }
 
 export interface BrandGuidelinesAnalysis {

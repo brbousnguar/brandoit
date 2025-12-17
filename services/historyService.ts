@@ -84,7 +84,8 @@ export const historyService = {
         timestamp: item.timestamp,
         config: item.config,
         imageUrl,
-        mimeType: item.mimeType
+        mimeType: item.mimeType,
+        modelId: item.modelId
       });
 
       // Cleanup old items to enforce limit
@@ -161,7 +162,8 @@ export const historyService = {
         return {
           ...data,
           id: doc.id,
-          imageUrl: data.imageUrl || ''
+          imageUrl: data.imageUrl || '',
+          modelId: data.modelId
         } as GenerationHistoryItem;
       });
     } catch (e) {

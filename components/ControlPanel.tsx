@@ -3,6 +3,7 @@ import { GenerationConfig, BrandColor, VisualStyle, GraphicType, AspectRatioOpti
 import { analyzeImageForOption, expandPrompt } from '../services/geminiService';
 import { resourceService } from '../services/resourceService';
 import { teamService } from '../services/teamService';
+import { SUPPORTED_MODELS } from '../constants';
 import { 
   Palette, 
   PenTool, 
@@ -47,6 +48,8 @@ interface ControlPanelProps {
   onUploadGuidelines: (file: File) => void;
   isAnalyzing: boolean;
   user: User | null; // Pass user for contribution
+  selectedModel: string;
+  onModelChange: (modelId: string) => void;
 }
 
 // Modal Component
@@ -86,7 +89,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   setOptions,
   onUploadGuidelines,
   isAnalyzing,
-  user
+  user,
+  selectedModel,
+  onModelChange
 }) => {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -728,6 +733,24 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                  </div>
               </>
             )}
+          </div>
+
+          {/* Model Selector */}
+          <div className="w-full max-w-5xl mx-auto flex flex-col sm:flex-row gap-3 mb-3">
+            <div className="w-full sm:w-64">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">
+                Model
+              </label>
+              <select
+                value={selectedModel}
+                onChange={(e) => onModelChange(e.target.value)}
+                className="w-full bg-white dark:bg-[#0d1117] border border-gray-200 dark:border-[#30363d] text-slate-900 dark:text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-brand-teal focus:border-brand-teal transition-colors"
+              >
+                {SUPPORTED_MODELS.map(model => (
+                  <option key={model.id} value={model.id}>{model.name}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* 2. Prompt Input Area */}

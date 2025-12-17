@@ -397,7 +397,8 @@ const App: React.FC = () => {
         ...result,
         id: `gen-${Date.now()}`,
         timestamp: Date.now(),
-        config: { ...config }
+        config: { ...config },
+        modelId: selectedModel
       };
       
       await historyService.saveToHistory(user, historyItem);
@@ -420,7 +421,14 @@ const App: React.FC = () => {
     setError(null);
     try {
       const customKey = getActiveApiKey();
-      const result = await refineGraphic(generatedImage, refinementText, config, context, customKey, user?.preferences.systemPrompt);
+      const selectedModel = user?.preferences.selectedModel || 'gemini';
+      let result;
+      if (selectedModel === 'openai') {
+        if (!customKey) throw new Error('OpenAI API key is required for image generation.');
+        result = await generateOpenAIImage(`${config.prompt} (Refine: ${refinementText})`, config, customKey, user?.preferences.systemPrompt);
+      } else {
+        result = await refineGraphic(generatedImage, refinementText, config, context, customKey, user?.preferences.systemPrompt);
+      }
       setGeneratedImage(result);
       
       // Save refined version to history too? Or update existing? Let's save as new for now.
@@ -428,7 +436,8 @@ const App: React.FC = () => {
         ...result,
         id: `gen-${Date.now()}`,
         timestamp: Date.now(),
-        config: { ...config, prompt: `${config.prompt} (Refined: ${refinementText})` }
+        config: { ...config, prompt: `${config.prompt} (Refined: ${refinementText})` },
+        modelId: selectedModel
       };
       await historyService.saveToHistory(user, historyItem);
       const updatedHistory = await historyService.getHistory(user);
@@ -767,6 +776,19 @@ const App: React.FC = () => {
             onUploadGuidelines={handleUploadGuidelines}
             isAnalyzing={isAnalyzing}
             user={user}
+            selectedModel={user?.preferences.selectedModel || 'gemini'}
+            onModelChange={(modelId) => {
+              if (!user) return;
+              const updatedUser = {
+                ...user,
+                preferences: {
+                  ...user.preferences,
+                  selectedModel: modelId
+                }
+              };
+              setUser(updatedUser);
+              authService.updateUserPreferences(user.id, updatedUser.preferences).catch(console.error);
+            }}
           />
 
           {/* Main Content Area */}
