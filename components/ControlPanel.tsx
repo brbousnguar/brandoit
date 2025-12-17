@@ -143,6 +143,17 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
     }
   }, [user]);
 
+  // Close dropdowns when clicking outside the toolbar
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setActiveDropdown(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // Clear search when dropdown changes
   useEffect(() => {
     setSearchTerm('');
@@ -498,7 +509,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   const DropdownButton = ({ icon: Icon, label, isActive, onClick, subLabel, colors }: any) => (
     <button
       onClick={onClick}
-      className={`h-full px-3 py-2 border rounded-lg flex items-center gap-2 transition-all min-w-[140px] md:min-w-[160px] justify-between group ${
+      className={`h-full px-3 py-2 border rounded-lg flex items-center gap-2 transition-all min-w-[120px] md:min-w-[150px] justify-between group ${
         isActive 
           ? 'bg-gray-100 dark:bg-[#1c2128] border-brand-teal text-brand-teal dark:text-brand-teal' 
           : 'bg-white dark:bg-[#0d1117] border-gray-200 dark:border-[#30363d] text-slate-600 dark:text-slate-300 hover:border-slate-400 dark:hover:border-slate-500 hover:bg-gray-50 dark:hover:bg-[#161b22]'
@@ -507,8 +518,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       <div className="flex items-center gap-2.5 overflow-hidden text-left w-full">
         <Icon size={16} className={isActive ? "text-brand-teal dark:text-brand-teal" : "text-slate-500 group-hover:text-slate-700 dark:group-hover:text-slate-400"} />
         <div className="flex flex-col flex-1 min-w-0">
-          <span className="text-[10px] uppercase font-bold text-slate-500 leading-none mb-0.5">{subLabel}</span>
-          <span className="truncate text-xs font-medium">{label}</span>
+          <span className="text-[11px] uppercase font-bold text-brand-teal leading-none mb-0.5 hidden sm:block">{subLabel}</span>
+          <span className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{label}</span>
           {colors && colors.length > 0 && (
              <div className="flex h-1 mt-1 rounded-sm overflow-hidden ring-1 ring-black/5 dark:ring-white/10 opacity-80">
                {colors.map((hex: string, i: number) => (
@@ -527,8 +538,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   const currentColor = options.brandColors.find(c => c.id === config.colorSchemeId);
   const currentRatio = options.aspectRatios.find(r => r.value === config.aspectRatio);
 
-  const inputClass = "w-full bg-white dark:bg-[#0d1117] border border-gray-200 dark:border-[#30363d] text-slate-900 dark:text-white text-sm rounded-lg p-3 focus:outline-none focus:ring-1 focus:ring-brand-red focus:border-brand-red transition-all placeholder-slate-400 dark:placeholder-slate-600";
-  const labelClass = "block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1";
+  const inputClass = "w-full bg-white dark:bg-[#0d1117] border border-gray-200 dark:border-[#30363d] text-slate-900 dark:text-white text-base rounded-lg p-3.5 focus:outline-none focus:ring-1 focus:ring-brand-red focus:border-brand-red transition-all placeholder-slate-400 dark:placeholder-slate-600";
+  const labelClass = "block text-xs md:text-sm font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1";
 
   // Helper to render scope icon
   const ScopeIcon = ({ scope }: { scope?: string }) => {
@@ -701,12 +712,35 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               )}
             </div>
 
+            {/* Spacer to push model selector right */}
+            <div className="flex-1 min-w-[40px]" />
+
+            {/* Model Selector (icon + select) */}
+            <div className="relative">
+              <div className="h-full px-3 py-2 border rounded-lg flex items-center gap-2 transition-all bg-white dark:bg-[#0d1117] border-gray-200 dark:border-[#30363d] text-slate-600 dark:text-slate-300 hover:border-slate-400 dark:hover:border-slate-500 hover:bg-gray-50 dark:hover:bg-[#161b22] min-w-[120px] md:min-w-[150px]">
+                <Sparkles size={16} className="text-brand-teal" />
+                <div className="flex flex-col flex-1 min-w-0">
+                  <span className="text-[11px] uppercase font-bold text-brand-teal leading-none mb-0.5 hidden sm:block">Model</span>
+                  <select
+                    value={selectedModel}
+                    onChange={(e) => onModelChange(e.target.value)}
+                    className="bg-transparent text-sm md:text-base font-semibold text-slate-800 dark:text-slate-100 w-full pr-6 focus:outline-none"
+                  >
+                    {SUPPORTED_MODELS.map(model => (
+                      <option key={model.id} value={model.id}>{model.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <ChevronDown size={14} className="text-slate-500" />
+              </div>
+            </div>
+
             {user && (
               <>
                 <div className="h-8 w-px bg-gray-200 dark:bg-[#30363d] mx-1 hidden sm:block"></div>
 
-                {/* Upload Button */}
-                 <div className="relative">
+                {/* Upload Button - icon only with hover label */}
+                 <div className="relative group">
                    <input 
                      type="file" 
                      ref={fileInputRef} 
@@ -717,7 +751,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                    <button
                      onClick={() => fileInputRef.current?.click()}
                      disabled={isAnalyzing}
-                     className="h-full px-3 py-2 border border-gray-200 dark:border-[#30363d] bg-white dark:bg-[#0d1117] hover:bg-gray-50 dark:hover:bg-[#161b22] text-slate-600 dark:text-slate-300 rounded-lg flex items-center gap-2 transition-all min-w-[100px] group"
+                     className="h-10 w-10 flex items-center justify-center border border-gray-200 dark:border-[#30363d] bg-white dark:bg-[#0d1117] hover:bg-gray-50 dark:hover:bg-[#161b22] text-slate-600 dark:text-slate-300 rounded-lg transition-all"
                      title="Upload Brand Guidelines (PDF or Image)"
                    >
                       {isAnalyzing ? (
@@ -725,46 +759,27 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                       ) : (
                         <UploadCloud size={16} className="text-brand-teal dark:text-brand-teal" />
                       )}
-                      <div className="flex flex-col text-left">
-                        <span className="text-[10px] uppercase font-bold text-slate-500 leading-none mb-0.5">Brand</span>
-                        <span className="text-xs font-medium">Upload</span>
-                      </div>
+                      <span className="pointer-events-none absolute -top-9 left-1/2 -translate-x-1/2 whitespace-nowrap text-[11px] font-medium px-2 py-1 rounded-md bg-black/90 text-white shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                        Upload brand
+                      </span>
                    </button>
                  </div>
               </>
             )}
           </div>
 
-          {/* Model Selector */}
-          <div className="w-full max-w-5xl mx-auto flex flex-col sm:flex-row gap-3 mb-3">
-            <div className="w-full sm:w-64">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">
-                Model
-              </label>
-              <select
-                value={selectedModel}
-                onChange={(e) => onModelChange(e.target.value)}
-                className="w-full bg-white dark:bg-[#0d1117] border border-gray-200 dark:border-[#30363d] text-slate-900 dark:text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-brand-teal focus:border-brand-teal transition-colors"
-              >
-                {SUPPORTED_MODELS.map(model => (
-                  <option key={model.id} value={model.id}>{model.name}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
           {/* 2. Prompt Input Area */}
           <div className="w-full max-w-5xl mx-auto flex flex-col sm:flex-row gap-3">
              <div className="relative flex-1">
-               <div className="absolute top-1/2 -translate-y-1/2 left-3 text-slate-400 dark:text-slate-500 pointer-events-none">
-                 <span className="text-xs font-bold uppercase tracking-wider">Prompt</span>
+              <div className="absolute top-1/2 -translate-y-1/2 left-3 text-slate-400 dark:text-slate-500 pointer-events-none">
+                <span className="text-sm font-bold uppercase tracking-wider text-brand-teal">Prompt</span>
                </div>
                <input 
                   type="text"
                   value={config.prompt}
                   onChange={(e) => handleChange('prompt', e.target.value)}
                   placeholder="Describe your graphic (e.g. 'A futuristic city chart')..."
-                  className="w-full bg-white dark:bg-[#0d1117] border border-gray-200 dark:border-[#30363d] text-slate-900 dark:text-white text-sm rounded-lg py-3 pl-20 pr-4 focus:outline-none focus:ring-1 focus:ring-brand-red focus:border-brand-red transition-all placeholder-slate-400 dark:placeholder-slate-600 shadow-sm dark:shadow-inner"
+                 className="w-full bg-white dark:bg-[#0d1117] border border-gray-200 dark:border-[#30363d] text-slate-900 dark:text-white text-base rounded-lg py-3.5 pl-24 pr-4 focus:outline-none focus:ring-1 focus:ring-brand-red focus:border-brand-red transition-all placeholder-slate-400 dark:placeholder-slate-600 shadow-sm dark:shadow-inner"
                 />
              </div>
              

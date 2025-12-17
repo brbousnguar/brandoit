@@ -21,7 +21,7 @@ const getAiClient = (customKey?: string) => {
 /**
  * Constructs the engineered prompt based on selected presets and dynamic context
  */
-const constructFullPrompt = (config: GenerationConfig, context: GenerationContext, systemPrompt?: string): string => {
+const constructFullPrompt = (config: GenerationConfig, context: GenerationContext): string => {
   const colorScheme = context.brandColors.find(c => c.id === config.colorSchemeId);
   const style = context.visualStyles.find(s => s.id === config.visualStyleId);
   const type = context.graphicTypes.find(t => t.id === config.graphicTypeId);
@@ -30,7 +30,7 @@ const constructFullPrompt = (config: GenerationConfig, context: GenerationContex
   const styleDesc = style ? style.description : 'clean style';
   const typeName = type ? type.name : 'image';
 
-  const base = `
+  return `
     Create a ${typeName}.
     Visual Style: ${styleDesc}.
     Color Palette: Strictly use these colors: ${colors}.
@@ -39,16 +39,11 @@ const constructFullPrompt = (config: GenerationConfig, context: GenerationContex
     
     Ensure the output is high quality and adheres to the style constraints.
   `.trim();
-
-  if (systemPrompt && systemPrompt.trim()) {
-    return `System Instruction: ${systemPrompt.trim()}\n\n${base}`;
-  }
-  return base;
 };
 
-export const generateGraphic = async (config: GenerationConfig, context: GenerationContext, customApiKey?: string, systemPrompt?: string): Promise<GeneratedImage> => {
+export const generateGraphic = async (config: GenerationConfig, context: GenerationContext, customApiKey?: string): Promise<GeneratedImage> => {
   const ai = getAiClient(customApiKey);
-  const fullPrompt = constructFullPrompt(config, context, systemPrompt);
+  const fullPrompt = constructFullPrompt(config, context);
 
   try {
     const response = await ai.models.generateContent({
@@ -75,8 +70,7 @@ export const refineGraphic = async (
   refinementPrompt: string, 
   config: GenerationConfig,
   context: GenerationContext,
-  customApiKey?: string,
-  systemPrompt?: string
+  customApiKey?: string
 ): Promise<GeneratedImage> => {
   const ai = getAiClient(customApiKey);
   const colorScheme = context.brandColors.find(c => c.id === config.colorSchemeId);
@@ -85,15 +79,11 @@ export const refineGraphic = async (
   const colors = colorScheme ? colorScheme.colors.join(', ') : '';
   const styleDesc = style ? style.description : '';
 
-  const baseRefinementPrompt = `
+  const fullRefinementPrompt = `
     Edit this image.
     Request: ${refinementPrompt}.
     Maintain the existing style (${styleDesc}) and color palette (${colors}).
   `.trim();
-
-  const fullRefinementPrompt = systemPrompt && systemPrompt.trim()
-    ? `System Instruction: ${systemPrompt.trim()}\n\n${baseRefinementPrompt}`
-    : baseRefinementPrompt;
 
   try {
     const response = await ai.models.generateContent({
@@ -128,12 +118,12 @@ export const refineGraphic = async (
 /**
  * Analyzes a brand guideline document (PDF or Image) to extract colors, styles, and types.
  */
-export const analyzeBrandGuidelines = async (file: File, customApiKey?: string, systemPrompt?: string): Promise<BrandGuidelinesAnalysis> => {
+export const analyzeBrandGuidelines = async (file: File, customApiKey?: string): Promise<BrandGuidelinesAnalysis> => {
   const ai = getAiClient(customApiKey);
   const base64Data = await fileToBase64(file);
   const mimeType = file.type;
 
-  const basePrompt = `
+  const prompt = `
     Analyze this brand guideline document. 
     Extract the following structured data:
     1. Brand Colors: Extract up to 5 distinct color palettes found. Provide a descriptive name for each palette (e.g., "Primary Brand", "Secondary Accents") and a list of hex codes.
@@ -142,10 +132,6 @@ export const analyzeBrandGuidelines = async (file: File, customApiKey?: string, 
 
     Return the result as a strict JSON object matching the schema.
   `;
-
-  const prompt = systemPrompt && systemPrompt.trim()
-    ? `System Instruction: ${systemPrompt.trim()}\n\n${basePrompt}`
-    : basePrompt;
 
   try {
     const response = await ai.models.generateContent({
@@ -258,11 +244,11 @@ export const analyzeImageForOption = async (
     };
   }
 
-  if (systemPrompt && systemPrompt.trim()) {
-    prompt = `System Instruction: ${systemPrompt.trim()}\n\n${prompt}`;
-  }
-
   try {
+    const finalPrompt = systemPrompt && systemPrompt.trim()
+      ? `System Instruction: ${systemPrompt.trim()}\n\n${prompt}`
+      : prompt;
+
     const response = await ai.models.generateContent({
       model: ANALYSIS_MODEL,
       contents: {
@@ -273,7 +259,7 @@ export const analyzeImageForOption = async (
               mimeType: mimeType,
             },
           },
-          { text: prompt }
+          { text: finalPrompt }
         ]
       },
       config: {

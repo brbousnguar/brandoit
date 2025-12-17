@@ -383,10 +383,11 @@ const App: React.FC = () => {
     try {
       const customKey = getActiveApiKey();
       const selectedModel = user?.preferences.selectedModel || 'gemini';
+      const structuredPrompt = buildStructuredPrompt(config);
       let result;
       if (selectedModel === 'openai') {
         if (!customKey) throw new Error('OpenAI API key is required for image generation.');
-        result = await generateOpenAIImage(config.prompt, config, customKey, user?.preferences.systemPrompt);
+        result = await generateOpenAIImage(structuredPrompt, config, customKey, user?.preferences.systemPrompt);
       } else {
         result = await generateGraphic(config, context, customKey, user?.preferences.systemPrompt);
       }
@@ -422,10 +423,12 @@ const App: React.FC = () => {
     try {
       const customKey = getActiveApiKey();
       const selectedModel = user?.preferences.selectedModel || 'gemini';
+      const structuredPrompt = buildStructuredPrompt(config);
       let result;
       if (selectedModel === 'openai') {
         if (!customKey) throw new Error('OpenAI API key is required for image generation.');
-        result = await generateOpenAIImage(`${config.prompt} (Refine: ${refinementText})`, config, customKey, user?.preferences.systemPrompt);
+        const refinementRequest = `${structuredPrompt}\nRefinement: ${refinementText}`;
+        result = await generateOpenAIImage(refinementRequest, config, customKey, user?.preferences.systemPrompt);
       } else {
         result = await refineGraphic(generatedImage, refinementText, config, context, customKey, user?.preferences.systemPrompt);
       }
