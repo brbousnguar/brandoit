@@ -19,6 +19,7 @@ This project is designed to be worked on by specialized AI agents.
 - Ensures responsive design and dark mode compatibility via Tailwind CSS.
 - Handles user interactions and visual feedback (loading states, toasts, modals).
 - **Configuration Safety:** Implements a "Configuration Error" screen in `App.tsx` to block app usage if critical `.env` variables are missing.
+- **Toolbar Consistency:** Model selector and toolbar dropdowns use the same fancy button/dropdown styling (teal labels, hover overlays, responsive text hiding) for a consistent UX.
 
 ### 2. Service Agent
 **Focus:** Business Logic, API Integrations, Data Management.

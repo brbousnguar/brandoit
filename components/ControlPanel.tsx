@@ -711,28 +711,35 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                 </div>
               )}
             </div>
-
-            {/* Spacer to push model selector right */}
-            <div className="flex-1 min-w-[40px]" />
-
-            {/* Model Selector (icon + select) */}
+            {/* Model Selector (fancy dropdown) */}
             <div className="relative">
-              <div className="h-full px-3 py-2 border rounded-lg flex items-center gap-2 transition-all bg-white dark:bg-[#0d1117] border-gray-200 dark:border-[#30363d] text-slate-600 dark:text-slate-300 hover:border-slate-400 dark:hover:border-slate-500 hover:bg-gray-50 dark:hover:bg-[#161b22] min-w-[120px] md:min-w-[150px]">
-                <Sparkles size={16} className="text-brand-teal" />
-                <div className="flex flex-col flex-1 min-w-0">
-                  <span className="text-[11px] uppercase font-bold text-brand-teal leading-none mb-0.5 hidden sm:block">Model</span>
-                  <select
-                    value={selectedModel}
-                    onChange={(e) => onModelChange(e.target.value)}
-                    className="bg-transparent text-sm md:text-base font-semibold text-slate-800 dark:text-slate-100 w-full pr-6 focus:outline-none"
-                  >
-                    {SUPPORTED_MODELS.map(model => (
-                      <option key={model.id} value={model.id}>{model.name}</option>
-                    ))}
-                  </select>
+              <DropdownButton 
+                icon={Sparkles} 
+                subLabel="Model" 
+                label={SUPPORTED_MODELS.find(m => m.id === selectedModel)?.name || 'Select'} 
+                isActive={activeDropdown === 'model'} 
+                onClick={() => toggleDropdown('model')} 
+              />
+              {activeDropdown === 'model' && (
+                <div className="absolute top-full left-0 mt-2 w-64 bg-white dark:bg-[#161b22] border border-gray-200 dark:border-[#30363d] rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col">
+                  {SUPPORTED_MODELS.map(model => (
+                    <button
+                      key={model.id}
+                      onClick={() => {
+                        onModelChange(model.id);
+                        setActiveDropdown(null);
+                      }}
+                      className={`w-full text-left px-3 py-2.5 text-sm flex items-center gap-2 hover:bg-gray-100 dark:hover:bg-[#21262d] transition-colors ${selectedModel === model.id ? 'text-brand-teal font-semibold' : 'text-slate-700 dark:text-slate-200'}`}
+                    >
+                      <Sparkles size={14} className="text-brand-teal" />
+                      <div className="flex flex-col">
+                        <span className="font-medium">{model.name}</span>
+                        <span className="text-xs text-slate-500 dark:text-slate-400">{model.description}</span>
+                      </div>
+                    </button>
+                  ))}
                 </div>
-                <ChevronDown size={14} className="text-slate-500" />
-              </div>
+              )}
             </div>
 
             {user && (
