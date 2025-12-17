@@ -14,6 +14,7 @@ import {
   ASPECT_RATIOS 
 } from './constants';
 import { generateGraphic, refineGraphic, analyzeBrandGuidelines, describeImagePrompt } from './services/geminiService';
+import { generateOpenAIImage } from './services/openaiService';
 import { authService } from './services/authService';
 import { historyService } from './services/historyService';
 // import { seedCatalog } from './services/seeder'; // Removed
@@ -381,7 +382,14 @@ const App: React.FC = () => {
     setError(null);
     try {
       const customKey = getActiveApiKey();
-      const result = await generateGraphic(config, context, customKey, user?.preferences.systemPrompt);
+      const selectedModel = user?.preferences.selectedModel || 'gemini';
+      let result;
+      if (selectedModel === 'openai') {
+        if (!customKey) throw new Error('OpenAI API key is required for image generation.');
+        result = await generateOpenAIImage(config.prompt, config, customKey, user?.preferences.systemPrompt);
+      } else {
+        result = await generateGraphic(config, context, customKey, user?.preferences.systemPrompt);
+      }
       setGeneratedImage(result);
 
       // Save to history
@@ -773,11 +781,11 @@ const App: React.FC = () => {
                   </span>
                   {!user ? (
                     <span>
-                      To use BranDoIt, please <strong>Log In</strong> and add your <strong>Google Gemini API Key</strong> in settings.
+                      To use BranDoIt, please <strong>Log In</strong> and add your <strong>API Key</strong> in settings.
                     </span>
                   ) : (
                     <span>
-                      To generate graphics, you must add your <strong>Google Gemini API Key</strong> in <button onClick={() => setSettingsMode(true)} className="underline hover:text-blue-600 dark:hover:text-blue-100 font-bold decoration-2 underline-offset-2">Preferences</button>.
+                      To generate graphics, you must add your <strong>API Key</strong> in <button onClick={() => setSettingsMode(true)} className="underline hover:text-blue-600 dark:hover:text-blue-100 font-bold decoration-2 underline-offset-2">Preferences</button>.
                     </span>
                   )}
                 </p>

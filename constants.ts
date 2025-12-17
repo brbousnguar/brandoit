@@ -101,9 +101,9 @@ export const SUPPORTED_MODELS: ModelConfig[] = [
   },
   {
     id: 'openai',
-    name: 'OpenAI DALL-E',
+    name: 'OpenAI GPT-Image 1.5',
     provider: 'openai',
-    description: "OpenAI's DALL-E for image generation",
-    defaultModel: 'dall-e-3'
+    description: "OpenAI's GPT-Image 1.5 for image generation",
+    defaultModel: 'gpt-image-1.5'
   }
 ];
