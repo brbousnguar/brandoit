@@ -95,7 +95,6 @@ export const ASPECT_RATIOS: AspectRatioOption[] = [
   { label: 'Presentation (4:3)', value: '4:3', icon: Monitor },
   { label: 'Tall Print (4:5)', value: '4:5', icon: Smartphone },
   { label: 'Slide Friendly (5:4)', value: '5:4', icon: Monitor },
-  { label: 'Slides (6:5)', value: '6:5', icon: Monitor },
   { label: 'Portrait (9:16)', value: '9:16', icon: Smartphone },
   { label: 'Landscape (16:9)', value: '16:9', icon: Tv },
   { label: 'Ultrawide (21:9)', value: '21:9', icon: Tv }

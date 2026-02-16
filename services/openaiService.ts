@@ -2,25 +2,17 @@ import { GenerationConfig, GeneratedImage } from '../types';
 
 const MODEL_ID = 'gpt-image-1.5';
 
-// Map aspect ratios to OpenAI-supported sizes (allowed: 1024x1024, 1024x1536, 1536x1024, auto)
+// OpenAI gpt-image only supports 3 output sizes.
+// The aspect ratio dropdown already restricts selection to these 3 values.
 const aspectToSize = (aspect: string): string => {
   switch (aspect) {
-    case '16:9':
-    case '21:9':
-    case '4:3':
     case '3:2':
-    case '5:4':
-    case '6:5':
-      return '1536x1024'; // landscape-ish
-    case '9:16':
+      return '1536x1024';
     case '2:3':
-    case '3:4':
-    case '4:5':
-      return '1024x1536'; // portrait-ish
+      return '1024x1536';
     case '1:1':
-      return '1024x1024';
     default:
-      return 'auto';
+      return '1024x1024';
   }
 };
 

@@ -99,14 +99,13 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Modal & Edit State
-  const [modalType, setModalType] = useState<'type' | 'style' | 'color' | 'size' | null>(null);
+  const [modalType, setModalType] = useState<'type' | 'style' | 'color' | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   
   // New Item Form State
   const [newItemName, setNewItemName] = useState('');
   const [newItemDescription, setNewItemDescription] = useState('');
   const [newItemColors, setNewItemColors] = useState<string[]>([]);
-  const [newItemValue, setNewItemValue] = useState(''); // Used for aspect ratio value
   
   // Scoping State
   const [itemScope, setItemScope] = useState<'private' | 'public' | 'team'>('private');
@@ -169,7 +168,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
     setActiveDropdown(activeDropdown === name ? null : name);
   };
 
-  const handleToggleDefault = async (e: React.MouseEvent, type: 'type'|'style'|'color'|'size', item: any) => {
+  const handleToggleDefault = async (e: React.MouseEvent, type: 'type'|'style'|'color', item: any) => {
     e.stopPropagation();
     if (!item.id || item.scope === 'system') return; // Cannot toggle already system items easily without unsetting? Wait, we want to toggle.
     // Actually, if it is system, we might want to unset it.
@@ -182,7 +181,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         if (type === 'type') collectionName = 'graphic_types';
         else if (type === 'style') collectionName = 'visual_styles';
         else if (type === 'color') collectionName = 'brand_colors';
-        else if (type === 'size') collectionName = 'aspect_ratios';
 
         await resourceService.updateCustomItem(collectionName, item.id, { scope: newScope, isSystem: newScope === 'system' });
         
@@ -192,7 +190,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         if (type === 'type') setOptions.setGraphicTypes(updateState);
         else if (type === 'style') setOptions.setVisualStyles(updateState);
         else if (type === 'color') setOptions.setBrandColors(updateState);
-        else if (type === 'size') setOptions.setAspectRatios(updateState);
 
     } catch (e) {
         console.error("Failed to toggle default status", e);
@@ -257,8 +254,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                             </div>
                             
                             <div className="flex items-center gap-1">
-                                {/* Admin "Make Default" Toggle */}
-                                {user?.username === 'planetoftheweb' && (
+                                {/* Admin "Make Default" Toggle -- hidden for size (model-locked) */}
+                                {type !== 'size' && user?.username === 'planetoftheweb' && (
                                     <button
                                         onClick={(e) => handleToggleDefault(e, type, item)}
                                         className={`p-1.5 rounded-md transition-colors ${
@@ -296,14 +293,13 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
     );
   };
 
-  const openModal = (type: 'type' | 'style' | 'color' | 'size') => {
+  const openModal = (type: 'type' | 'style' | 'color') => {
     setModalType(type);
     setActiveDropdown(null); // Close dropdown
     setEditingId(null); // Reset edit state
     setNewItemName('');
     setNewItemDescription('');
     setNewItemColors(['#000000']); // Default color
-    setNewItemValue('');
     
     // Default Scope
     if (user?.preferences?.settings?.contributeByDefault) {
@@ -313,7 +309,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
     }
   };
 
-  const handleEdit = (e: React.MouseEvent, type: 'type' | 'style' | 'color' | 'size', item: any) => {
+  const handleEdit = (e: React.MouseEvent, type: 'type' | 'style' | 'color', item: any) => {
     e.stopPropagation();
     setModalType(type);
     setActiveDropdown(null);
@@ -328,8 +324,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
     if (type === 'color') {
       setNewItemColors(item.colors || []);
-    } else if (type === 'size') {
-      setNewItemValue(item.value);
     }
   };
 
@@ -455,26 +449,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
            }
         }
       }
-      else if (modalType === 'size') {
-        const newVal = newItemValue.trim() || '1:1';
-        const newSize = { label: newItemName, value: newVal, scope: itemScope, teamId: selectedTeamId };
-        if (user) {
-           if (editingId) {
-              // Note: Sizes use value as ID sometimes, but editingId should be the doc ID if coming from DB
-              // If it's a local edit of a temp item, this might fail, but we only allow editing owned items which have IDs.
-              // Wait, aspect ratios in constants don't have IDs, they use value. 
-              // But custom ones from Firestore DO have IDs.
-              // Let's assume editingId is the Firestore ID.
-              await resourceService.updateCustomItem('aspect_ratios', editingId, newSize);
-              setOptions.setAspectRatios(prev => prev.map(x => (x as any).id === editingId ? { ...x, ...newSize } : x));
-           } else {
-              const saved = await resourceService.addCustomItem('aspect_ratios', newSize, user.id, itemScope, selectedTeamId);
-              setOptions.setAspectRatios(prev => [...prev, saved as AspectRatioOption]);
-              handleChange('aspectRatio', saved.value);
-           }
-        }
-      }
-
     } catch (e) {
       console.error("Error saving item:", e);
       alert("Failed to save item. Ensure you are logged in.");
@@ -483,7 +457,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
     closeModal();
   };
 
-  const handleDelete = async (e: React.MouseEvent, type: 'type'|'style'|'color'|'size', idOrValue: string) => {
+  const handleDelete = async (e: React.MouseEvent, type: 'type'|'style'|'color', idOrValue: string) => {
     e.stopPropagation();
     
     // Optimistic UI Update
@@ -498,12 +472,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
     else if (type === 'color') {
       setOptions.setBrandColors(prev => prev.filter(x => x.id !== idOrValue));
       if (user) resourceService.deleteCustomItem('brand_colors', idOrValue);
-    }
-    else if (type === 'size') {
-      setOptions.setAspectRatios(prev => prev.filter(x => x.value !== idOrValue));
-      if (user) resourceService.deleteCustomItem('aspect_ratios', idOrValue); 
-      // Note: Delete by ID not value for consistency, but resourceService expects ID. 
-      // If 'idOrValue' is ID, we are good.
     }
   };
 
@@ -572,8 +540,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       )}
       
       <div className={`flex items-center gap-1`}>
-        {/* Show edit/delete only if user is logged in AND (owns item OR is admin) */}
-        {user && ((!item.isSystem && item.authorId === user.id) || user.username === 'planetoftheweb') && (
+        {/* Sizes are model-locked -- no edit/delete allowed */}
+        {type !== 'size' && user && ((!item.isSystem && item.authorId === user.id) || user.username === 'planetoftheweb') && (
           <>
             <button 
               onClick={(e) => handleEdit(e, type, item)} 
@@ -716,15 +684,11 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                     type="size" 
                     configKey="aspectRatio" 
                   />
-                  {selectedModel === 'gemini' ? (
-                    <div className="w-full text-left p-3 text-[11px] text-slate-500 border-t border-gray-200 dark:border-[#30363d] bg-gray-50 dark:bg-[#0d1117]">
-                      Nano Banana supports a fixed list of aspect ratios.
-                    </div>
-                  ) : user ? (
-                    <button onClick={() => openModal('size')} className="w-full text-left p-3 text-xs font-bold text-brand-teal dark:text-brand-teal border-t border-gray-200 dark:border-[#30363d] hover:bg-gray-100 dark:hover:bg-[#21262d] flex items-center gap-2 transition-colors">
-                       <Plus size={14} /> Add Custom Size
-                    </button>
-                  ) : null}
+                  <div className="w-full text-left p-3 text-[11px] text-slate-500 border-t border-gray-200 dark:border-[#30363d] bg-gray-50 dark:bg-[#0d1117]">
+                    {selectedModel === 'gemini'
+                      ? 'Showing only ratios Nano Banana supports natively.'
+                      : 'Showing only ratios GPT Image outputs natively.'}
+                  </div>
                 </div>
               )}
             </div>
@@ -858,8 +822,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           editingId ? 'Edit Option' : 
           modalType === 'type' ? 'Add Custom Graphic Type' :
           modalType === 'style' ? 'Add Custom Brand Style' :
-          modalType === 'color' ? 'Add Custom Palette' :
-          modalType === 'size' ? 'Add Custom Size' : ''
+          modalType === 'color' ? 'Add Custom Palette' : ''
         }
       >
         <div className="space-y-4">
@@ -903,14 +866,12 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           )}
 
           <div>
-            <label className={labelClass}>
-              {modalType === 'size' ? 'Label (e.g. Ultrawide)' : 'Name'}
-            </label>
+            <label className={labelClass}>Name</label>
             <input
               autoFocus
               value={newItemName}
               onChange={(e) => setNewItemName(e.target.value)}
-              placeholder={modalType === 'size' ? 'Ultrawide Display' : 'Enter name...'}
+              placeholder="Enter name..."
               className={inputClass}
             />
           </div>
@@ -974,20 +935,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             </div>
           )}
 
-          {modalType === 'size' && (
-            <div>
-              <label className={labelClass}>Ratio Value</label>
-              <input
-                value={newItemValue}
-                onChange={(e) => setNewItemValue(e.target.value)}
-                placeholder="e.g. 21:9"
-                className={inputClass}
-              />
-            </div>
-          )}
-
           {/* --- NEW SCOPE SELECTOR --- */}
-          {user && modalType !== 'size' && (
+          {user && (
              <div className="pt-4 border-t border-gray-100 dark:border-[#30363d] space-y-3">
                 <label className={labelClass}>Visibility & Sharing</label>
                 <div className="grid grid-cols-3 gap-2">

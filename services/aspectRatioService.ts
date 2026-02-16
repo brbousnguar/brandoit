@@ -1,6 +1,7 @@
 import { ASPECT_RATIOS } from '../constants';
 import { AspectRatioOption } from '../types';
 
+// Gemini natively supports exactly these 10 ratios (documented by Google).
 export const GEMINI_ALLOWED_ASPECT_RATIOS = [
   '1:1',
   '2:3',
@@ -14,6 +15,15 @@ export const GEMINI_ALLOWED_ASPECT_RATIOS = [
   '21:9'
 ] as const;
 
+// OpenAI gpt-image only produces 3 pixel sizes:
+//   1024x1024 (1:1), 1024x1536 (2:3), 1536x1024 (3:2)
+// Every other ratio silently maps to one of these, so only expose the real outputs.
+export const OPENAI_ALLOWED_ASPECT_RATIOS = [
+  '1:1',
+  '2:3',
+  '3:2'
+] as const;
+
 const GEMINI_LABELS: Record<string, string> = {
   '1:1': 'Square (1:1)',
   '2:3': 'Tall Portrait (2:3)',
@@ -25,6 +35,12 @@ const GEMINI_LABELS: Record<string, string> = {
   '9:16': 'Portrait (9:16)',
   '16:9': 'Landscape (16:9)',
   '21:9': 'Ultrawide (21:9)'
+};
+
+const OPENAI_LABELS: Record<string, string> = {
+  '1:1': 'Square (1:1)',
+  '2:3': 'Portrait (2:3)',
+  '3:2': 'Landscape (3:2)'
 };
 
 const normalizeAspectRatio = (value?: string): string => (value || '').replace(/\s+/g, '').trim();
@@ -67,22 +83,20 @@ const dedupeByValue = (ratios: AspectRatioOption[]): AspectRatioOption[] => {
   return Array.from(map.values());
 };
 
-export const getAspectRatiosForModel = (
-  modelId: string,
-  allRatios: AspectRatioOption[]
+const buildFilteredRatios = (
+  allowedRatios: readonly string[],
+  labels: Record<string, string>,
+  source: AspectRatioOption[]
 ): AspectRatioOption[] => {
-  const source = dedupeByValue(allRatios?.length ? allRatios : ASPECT_RATIOS);
-  if (modelId !== 'gemini') return source;
-
   const sourceByValue = new Map(source.map(r => [normalizeAspectRatio(r.value), r]));
-  return GEMINI_ALLOWED_ASPECT_RATIOS.map((value) => {
+  return allowedRatios.map((value) => {
     const existing = sourceByValue.get(value);
     if (existing) return existing;
 
     return {
-      id: `gemini-${value.replace(':', '-')}`,
-      name: GEMINI_LABELS[value],
-      label: GEMINI_LABELS[value],
+      id: `model-${value.replace(':', '-')}`,
+      name: labels[value],
+      label: labels[value],
       value,
       scope: 'system',
       authorId: 'system',
@@ -95,6 +109,32 @@ export const getAspectRatiosForModel = (
   });
 };
 
+/**
+ * Returns only the aspect ratios that the given model actually supports.
+ * No silent conversions -- what you see is what you get.
+ */
+export const getAspectRatiosForModel = (
+  modelId: string,
+  allRatios: AspectRatioOption[]
+): AspectRatioOption[] => {
+  const source = dedupeByValue(allRatios?.length ? allRatios : ASPECT_RATIOS);
+
+  if (modelId === 'gemini') {
+    return buildFilteredRatios(GEMINI_ALLOWED_ASPECT_RATIOS, GEMINI_LABELS, source);
+  }
+
+  if (modelId === 'openai') {
+    return buildFilteredRatios(OPENAI_ALLOWED_ASPECT_RATIOS, OPENAI_LABELS, source);
+  }
+
+  // Unknown model: return everything
+  return source;
+};
+
+/**
+ * Ensures the requested aspect ratio is valid for the model.
+ * If not, returns the closest supported ratio.
+ */
 export const getSafeAspectRatioForModel = (
   modelId: string,
   requestedAspectRatio: string,
@@ -104,17 +144,15 @@ export const getSafeAspectRatioForModel = (
   const modelRatios = getAspectRatiosForModel(modelId, allRatios);
   const modelValues = modelRatios.map(r => normalizeAspectRatio(r.value)).filter(Boolean);
 
-  if (modelId !== 'gemini') {
-    return normalizedRequested || modelValues[0] || '1:1';
-  }
-
+  // If the requested ratio is directly supported, use it as-is
   if (normalizedRequested && modelValues.includes(normalizedRequested)) {
     return normalizedRequested;
   }
 
+  // Otherwise find the closest match
   const closest = normalizedRequested
     ? findClosestAspectRatio(normalizedRequested, modelValues)
     : null;
 
-  return closest || modelValues[0] || GEMINI_ALLOWED_ASPECT_RATIOS[0];
+  return closest || modelValues[0] || '1:1';
 };

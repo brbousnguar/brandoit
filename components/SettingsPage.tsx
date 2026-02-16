@@ -457,8 +457,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 </select>
                 <p className="text-xs text-slate-500 mt-1">
                   {selectedModel === 'gemini'
-                    ? 'Nano Banana only allows fixed aspect ratios.'
-                    : 'GPT Image supports all listed sizes, including custom ratios.'}
+                    ? 'Showing only ratios Nano Banana supports natively.'
+                    : 'Showing only ratios GPT Image outputs natively.'}
                 </p>
               </div>
 
