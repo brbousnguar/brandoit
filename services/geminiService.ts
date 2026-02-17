@@ -4,6 +4,13 @@ import { getSafeAspectRatioForModel } from "./aspectRatioService";
 
 const NANO_BANANA_MODEL = 'gemini-3-pro-image-preview'; // DO NOT CHANGE: Required Model
 const ANALYSIS_MODEL = 'gemini-2.5-flash'; // DO NOT CHANGE
+const SUPPORTED_INPUT_IMAGE_MIME_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'image/heic',
+  'image/heif'
+]);
 
 interface GenerationContext {
   brandColors: BrandColor[];
@@ -18,6 +25,11 @@ const getAiClient = (customKey?: string) => {
   if (!key) throw new Error("API Key Required. Please log in and add your Google Gemini API Key in Settings.");
   return new GoogleGenAI({ apiKey: key });
 }
+
+const prependSystemInstruction = (prompt: string, systemPrompt?: string): string => {
+  if (!systemPrompt || !systemPrompt.trim()) return prompt;
+  return `System Instruction: ${systemPrompt.trim()}\n\n${prompt}`;
+};
 
 /**
  * Constructs the engineered prompt based on selected presets and dynamic context
@@ -42,9 +54,14 @@ const constructFullPrompt = (config: GenerationConfig, context: GenerationContex
   `.trim();
 };
 
-export const generateGraphic = async (config: GenerationConfig, context: GenerationContext, customApiKey?: string): Promise<GeneratedImage> => {
+export const generateGraphic = async (
+  config: GenerationConfig,
+  context: GenerationContext,
+  customApiKey?: string,
+  systemPrompt?: string
+): Promise<GeneratedImage> => {
   const ai = getAiClient(customApiKey);
-  const fullPrompt = constructFullPrompt(config, context);
+  const fullPrompt = prependSystemInstruction(constructFullPrompt(config, context), systemPrompt);
   const safeAspectRatio = getSafeAspectRatioForModel('gemini', config.aspectRatio, []);
 
   try {
@@ -54,6 +71,7 @@ export const generateGraphic = async (config: GenerationConfig, context: Generat
         parts: [{ text: fullPrompt }],
       },
       config: {
+        responseModalities: ['TEXT', 'IMAGE'],
         imageConfig: {
           aspectRatio: safeAspectRatio,
         }
@@ -72,7 +90,8 @@ export const refineGraphic = async (
   refinementPrompt: string, 
   config: GenerationConfig,
   context: GenerationContext,
-  customApiKey?: string
+  customApiKey?: string,
+  systemPrompt?: string
 ): Promise<GeneratedImage> => {
   const ai = getAiClient(customApiKey);
   const colorScheme = context.brandColors.find(c => c.id === config.colorSchemeId);
@@ -82,29 +101,31 @@ export const refineGraphic = async (
   const colors = colorScheme ? colorScheme.colors.join(', ') : '';
   const styleDesc = style ? style.description : '';
 
-  const fullRefinementPrompt = `
+  const fullRefinementPrompt = prependSystemInstruction(`
     Edit this image.
     Request: ${refinementPrompt}.
     Maintain the existing style (${styleDesc}) and color palette (${colors}).
-  `.trim();
+  `.trim(), systemPrompt);
 
   try {
+    const sourceImage = await resolveImageInputForRefinement(currentImage);
     const response = await ai.models.generateContent({
       model: NANO_BANANA_MODEL,
       contents: {
         parts: [
           {
-            inlineData: {
-              data: currentImage.base64Data,
-              mimeType: currentImage.mimeType,
-            },
+            text: fullRefinementPrompt,
           },
           {
-            text: fullRefinementPrompt,
+            inlineData: {
+              data: sourceImage.base64Data,
+              mimeType: sourceImage.mimeType,
+            },
           },
         ],
       },
       config: {
+        responseModalities: ['TEXT', 'IMAGE'],
         imageConfig: {
           aspectRatio: safeAspectRatio,
         }
@@ -121,12 +142,16 @@ export const refineGraphic = async (
 /**
  * Analyzes a brand guideline document (PDF or Image) to extract colors, styles, and types.
  */
-export const analyzeBrandGuidelines = async (file: File, customApiKey?: string): Promise<BrandGuidelinesAnalysis> => {
+export const analyzeBrandGuidelines = async (
+  file: File,
+  customApiKey?: string,
+  systemPrompt?: string
+): Promise<BrandGuidelinesAnalysis> => {
   const ai = getAiClient(customApiKey);
   const base64Data = await fileToBase64(file);
   const mimeType = file.type;
 
-  const prompt = `
+  const prompt = prependSystemInstruction(`
     Analyze this brand guideline document. 
     Extract the following structured data:
     1. Brand Colors: Extract up to 5 distinct color palettes found. Provide a descriptive name for each palette (e.g., "Primary Brand", "Secondary Accents") and a list of hex codes.
@@ -134,7 +159,7 @@ export const analyzeBrandGuidelines = async (file: File, customApiKey?: string):
     3. Graphic Types: Identify the types of graphics mentioned (e.g., "Icons", "Banners").
 
     Return the result as a strict JSON object matching the schema.
-  `;
+  `.trim(), systemPrompt);
 
   try {
     const response = await ai.models.generateContent({
@@ -363,6 +388,89 @@ export const expandPrompt = async (
 
   if (!response.text) throw new Error("No expanded prompt generated");
   return response.text.trim();
+};
+
+const parseDataUrl = (value?: string | null): { base64Data: string; mimeType: string } | null => {
+  if (!value) return null;
+  const match = value.match(/^data:([^;,]+)?(?:;[^,]*)?;base64,(.+)$/i);
+  if (!match) return null;
+
+  return {
+    mimeType: (match[1] || '').toLowerCase(),
+    base64Data: match[2]
+  };
+};
+
+const blobToBase64 = (blob: Blob): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      const parsed = parseDataUrl(result);
+      if (!parsed?.base64Data) {
+        reject(new Error('Failed to convert image blob to base64.'));
+        return;
+      }
+      resolve(parsed.base64Data);
+    };
+    reader.onerror = () => reject(new Error('Failed to read image blob.'));
+    reader.readAsDataURL(blob);
+  });
+};
+
+const fetchImageAsBase64 = async (imageUrl: string): Promise<{ base64Data: string; mimeType: string }> => {
+  const response = await fetch(imageUrl);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch source image (${response.status}).`);
+  }
+
+  const blob = await response.blob();
+  const base64Data = await blobToBase64(blob);
+  const mimeType = (blob.type || 'image/png').toLowerCase();
+  return { base64Data, mimeType };
+};
+
+const resolveImageInputForRefinement = async (
+  currentImage: GeneratedImage
+): Promise<{ base64Data: string; mimeType: string }> => {
+  let base64Data = (currentImage.base64Data || '').trim();
+  let mimeType = (currentImage.mimeType || '').trim().toLowerCase();
+
+  // Some persisted records accidentally carry a full data URL in `base64Data`.
+  const parsedInline = parseDataUrl(base64Data);
+  if (parsedInline) {
+    base64Data = parsedInline.base64Data;
+    mimeType = parsedInline.mimeType || mimeType;
+  }
+
+  const imageUrl = (currentImage.imageUrl || '').trim();
+  if ((!base64Data || !mimeType) && imageUrl) {
+    const parsedUrl = parseDataUrl(imageUrl);
+    if (parsedUrl) {
+      base64Data = base64Data || parsedUrl.base64Data;
+      mimeType = mimeType || parsedUrl.mimeType;
+    } else {
+      const fetched = await fetchImageAsBase64(imageUrl);
+      base64Data = base64Data || fetched.base64Data;
+      mimeType = mimeType || fetched.mimeType;
+    }
+  }
+
+  if (!base64Data) {
+    throw new Error(
+      "Source image data is unavailable for refinement. Please restore a recent image or generate it again."
+    );
+  }
+
+  // Base64 payloads should not contain whitespace/newlines.
+  base64Data = base64Data.replace(/\s+/g, '');
+  if (!mimeType) mimeType = 'image/png';
+
+  if (!SUPPORTED_INPUT_IMAGE_MIME_TYPES.has(mimeType)) {
+    console.warn(`Refine input image mime type may be unsupported: ${mimeType}`);
+  }
+
+  return { base64Data, mimeType };
 };
 
 // Helper to parse the response structure
