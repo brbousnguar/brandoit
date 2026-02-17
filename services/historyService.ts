@@ -65,6 +65,16 @@ export const historyService = {
     localStorage.removeItem(LOCAL_STORAGE_KEY);
   },
 
+  deleteFromLocal: (historyId: string) => {
+    try {
+      const history = historyService.getFromLocal();
+      const filtered = history.filter(item => item.id !== historyId);
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(filtered));
+    } catch (e) {
+      console.error("Failed to delete local history item:", e);
+    }
+  },
+
   // --- Firestore Logic ---
 
   saveToRemote: async (userId: string, item: GenerationHistoryItem) => {
@@ -108,6 +118,15 @@ export const historyService = {
     } catch (e) {
       console.error("Failed to fetch remote history:", e);
       return [];
+    }
+  },
+
+  deleteFromRemote: async (userId: string, historyId: string) => {
+    try {
+      await deleteDoc(doc(db, "users", userId, "history", historyId));
+    } catch (e) {
+      console.error("Failed to delete remote history item:", e);
+      throw e;
     }
   },
 
