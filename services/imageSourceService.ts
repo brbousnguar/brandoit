@@ -1,6 +1,6 @@
 import { GeneratedImage } from "../types";
 
-type ImageSource = Pick<GeneratedImage, "imageUrl" | "base64Data" | "mimeType">;
+type ImageSource = Pick<GeneratedImage, "imageUrl" | "base64Data" | "mimeType"> & Record<string, unknown>;
 
 const DATA_URL_REGEX = /^data:([^;,]+)?(?:;[^,]*)?;base64,(.+)$/i;
 
@@ -27,8 +27,19 @@ const decodeBase64ToBytes = (rawBase64: string): Uint8Array => {
 export const getImagePayload = (
   image: ImageSource
 ): { mimeType: string; base64Data: string } | null => {
-  const rawBase64 = (image.base64Data || "").trim();
-  const rawMimeType = (image.mimeType || "").trim().toLowerCase();
+  const rawBase64 = (
+    image.base64Data ||
+    (typeof image.base64 === "string" ? image.base64 : "") ||
+    (typeof image.b64_json === "string" ? image.b64_json : "") ||
+    (typeof image.b64Json === "string" ? image.b64Json : "") ||
+    (typeof image.imageBytes === "string" ? image.imageBytes : "")
+  ).trim();
+
+  const rawMimeType = (
+    image.mimeType ||
+    (typeof image.mime === "string" ? image.mime : "") ||
+    (typeof image.contentType === "string" ? image.contentType : "")
+  ).trim().toLowerCase();
 
   const parsedInline = parseDataUrl(rawBase64);
   if (parsedInline?.base64Data) {
