@@ -1,17 +1,26 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { UserSettings, AspectRatioOption, GraphicType, User, Team } from '../types';
-import { ArrowLeft, Settings as SettingsIcon, Save, User as UserIcon, Camera, Loader2, Users, Plus, Mail, Key, CheckCircle } from 'lucide-react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { UserSettings, AspectRatioOption, GraphicType, User, Team, VisualStyle, BrandColor } from '../types';
+import { ArrowLeft, Settings as SettingsIcon, Save, User as UserIcon, Camera, Loader2, Users, Plus, Key, CheckCircle, Layout, PenTool, Palette, Maximize, Sparkles } from 'lucide-react';
 import { uploadProfileImage } from '../services/imageService';
 import { teamService } from '../services/teamService';
 import { authService } from '../services/authService';
 import { SUPPORTED_MODELS } from '../constants';
 import { getAspectRatiosForModel, getSafeAspectRatioForModel } from '../services/aspectRatioService';
+import { RichSelect } from './RichSelect';
 
 interface SettingsPageProps {
   onBack: () => void;
   user: User;
-  onSave: (newSettings: UserSettings, profileData?: { name: string; username: string; photoURL?: string }, apiKey?: string, systemPrompt?: string) => void;
+  onSave: (
+    newSettings: UserSettings,
+    profileData?: { name: string; username: string; photoURL?: string },
+    geminiApiKey?: string,
+    systemPrompt?: string,
+    selectedModel?: string
+  ) => void;
   graphicTypes: GraphicType[];
+  visualStyles: VisualStyle[];
+  brandColors: BrandColor[];
   aspectRatios: AspectRatioOption[];
 }
 
@@ -20,6 +29,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   user,
   onSave,
   graphicTypes,
+  visualStyles,
+  brandColors,
   aspectRatios
 }) => {
   const [localSettings, setLocalSettings] = useState<UserSettings>(user.preferences.settings || { contributeByDefault: false, confirmDeleteHistory: true, confirmDeleteCurrent: true });
@@ -80,6 +91,68 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   }, [selectedModel, aspectRatios]);
 
   const modelAspectRatios = getAspectRatiosForModel(selectedModel, aspectRatios);
+  const scopeLabelMap: Record<string, string> = {
+    system: 'Defaults',
+    private: 'Private',
+    team: 'Team',
+    public: 'Public'
+  };
+  const groupOrder = ['Defaults', 'Private', 'Team', 'Public'];
+  const graphicTypeOptions = useMemo(
+    () => [
+      { value: '', label: 'Use App Default' },
+      ...[...graphicTypes]
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map(type => ({
+          value: type.id,
+          label: type.name,
+          group: scopeLabelMap[type.scope]
+        }))
+    ],
+    [graphicTypes]
+  );
+  const visualStyleOptions = useMemo(
+    () => [
+      { value: '', label: 'Use App Default' },
+      ...[...visualStyles]
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map(style => ({
+          value: style.id,
+          label: style.name,
+          description: style.description,
+          group: scopeLabelMap[style.scope]
+        }))
+    ],
+    [visualStyles]
+  );
+  const brandColorOptions = useMemo(
+    () => [
+      { value: '', label: 'Use App Default' },
+      ...[...brandColors]
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map(color => ({
+          value: color.id,
+          label: color.name,
+          description: color.colors.join(' · '),
+          group: scopeLabelMap[color.scope]
+        }))
+    ],
+    [brandColors]
+  );
+  const aspectRatioOptions = useMemo(
+    () => [
+      { value: '', label: 'Use App Default' },
+      ...modelAspectRatios.map(ratio => ({
+        value: ratio.value,
+        label: ratio.label
+      }))
+    ],
+    [modelAspectRatios]
+  );
+  const modelOptions = useMemo(
+    () => SUPPORTED_MODELS.map(model => ({ value: model.id, label: model.name, description: model.description })),
+    []
+  );
 
   const loadTeams = async () => {
     const userTeams = await teamService.getUserTeams(user.id);
@@ -92,17 +165,18 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     
     try {
       // Save API keys and selected model to Firestore
-    await authService.updateUserPreferences(user.id, {
+      await authService.updateUserPreferences(user.id, {
         ...user.preferences,
         apiKeys: apiKeys,
         selectedModel: selectedModel,
         geminiApiKey: apiKeys['gemini'] || user.preferences.geminiApiKey,
         systemPrompt,
-        modelLabels
+        modelLabels,
+        settings: localSettings
       });
       
-      const selectedApiKey = apiKeys[selectedModel] || '';
-      onSave(localSettings, { name, username, photoURL }, selectedApiKey, systemPrompt);
+      const geminiApiKey = apiKeys['gemini'] || user.preferences.geminiApiKey;
+      onSave(localSettings, { name, username, photoURL }, geminiApiKey, systemPrompt, selectedModel);
       
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
@@ -234,37 +308,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 <Key size={14} /> API Configuration
               </h4>
               
-              {/* Model Selection */}
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                  Active Model
-                </label>
-                <select
-                  value={selectedModel}
-                  onChange={(e) => {
-                    setSelectedModel(e.target.value);
-                    authService.updateUserPreferences(user.id, {
-                      ...user.preferences,
-                      selectedModel: e.target.value,
-                      apiKeys: apiKeys
-                    }).then(() => {
-                      setSaveSuccess(true);
-                      setTimeout(() => setSaveSuccess(false), 2000);
-                    }).catch(err => {
-                      console.error("Failed to save model selection:", err);
-                    });
-                  }}
-                  className="w-full bg-gray-50 dark:bg-[#0d1117] border border-gray-200 dark:border-[#30363d] rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-brand-teal focus:outline-none text-slate-900 dark:text-white"
-                >
-                  {SUPPORTED_MODELS.map(model => (
-                    <option key={model.id} value={model.id}>{model.name}</option>
-                  ))}
-                </select>
-                <p className="text-xs text-slate-500 mt-1">
-                  Select which AI model to use for generation.
-                </p>
-              </div>
-
               {/* API Keys for each model */}
               <div className="space-y-4">
                 {SUPPORTED_MODELS.map((model, idx) => (
@@ -425,41 +468,87 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-                  Default Graphic Type
-                </label>
-                <select
-                  value={localSettings.defaultGraphicTypeId || ''}
-                  onChange={(e) => setLocalSettings(prev => ({ ...prev, defaultGraphicTypeId: e.target.value }))}
-                  className="w-full bg-gray-50 dark:bg-[#0d1117] border border-gray-200 dark:border-[#30363d] rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-brand-teal focus:outline-none text-slate-900 dark:text-white"
-                >
-                  <option value="">Use App Default (Infographic)</option>
-                  {graphicTypes.map(t => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
-                  ))}
-                </select>
-              </div>
+              <div className="pt-1 border-t border-gray-200 dark:border-[#30363d]">
+                <h5 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Generation Defaults</h5>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                      Type
+                    </label>
+                    <RichSelect
+                      value={localSettings.defaultGraphicTypeId || ''}
+                      onChange={(value) => setLocalSettings(prev => ({ ...prev, defaultGraphicTypeId: value }))}
+                      options={graphicTypeOptions}
+                      icon={Layout}
+                      subLabel="Type"
+                      searchable
+                      groupOrder={groupOrder}
+                    />
+                  </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-                  Default Aspect Ratio
-                </label>
-                <select
-                  value={localSettings.defaultAspectRatio || ''}
-                  onChange={(e) => setLocalSettings(prev => ({ ...prev, defaultAspectRatio: e.target.value }))}
-                  className="w-full bg-gray-50 dark:bg-[#0d1117] border border-gray-200 dark:border-[#30363d] rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-brand-teal focus:outline-none text-slate-900 dark:text-white"
-                >
-                  <option value="">Use App Default (1:1)</option>
-                  {modelAspectRatios.map(r => (
-                    <option key={r.value} value={r.value}>{r.label}</option>
-                  ))}
-                </select>
-                <p className="text-xs text-slate-500 mt-1">
-                  {selectedModel === 'gemini'
-                    ? 'Showing only ratios Nano Banana supports natively.'
-                    : 'Showing only ratios GPT Image outputs natively.'}
-                </p>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                      Style
+                    </label>
+                    <RichSelect
+                      value={localSettings.defaultVisualStyleId || ''}
+                      onChange={(value) => setLocalSettings(prev => ({ ...prev, defaultVisualStyleId: value }))}
+                      options={visualStyleOptions}
+                      icon={PenTool}
+                      subLabel="Style"
+                      searchable
+                      groupOrder={groupOrder}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                      Colors
+                    </label>
+                    <RichSelect
+                      value={localSettings.defaultColorSchemeId || ''}
+                      onChange={(value) => setLocalSettings(prev => ({ ...prev, defaultColorSchemeId: value }))}
+                      options={brandColorOptions}
+                      icon={Palette}
+                      subLabel="Colors"
+                      searchable
+                      groupOrder={groupOrder}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                      Size
+                    </label>
+                    <RichSelect
+                      value={localSettings.defaultAspectRatio || ''}
+                      onChange={(value) => setLocalSettings(prev => ({ ...prev, defaultAspectRatio: value }))}
+                      options={aspectRatioOptions}
+                      icon={Maximize}
+                      subLabel="Size"
+                      searchable
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                      Model
+                    </label>
+                    <RichSelect
+                      value={selectedModel}
+                      onChange={setSelectedModel}
+                      options={modelOptions}
+                      icon={Sparkles}
+                      subLabel="Model"
+                      searchable
+                    />
+                    <p className="text-xs text-slate-500 mt-1">
+                      {selectedModel === 'gemini'
+                        ? 'Showing only ratios Nano Banana supports natively.'
+                        : 'Showing only ratios GPT Image outputs natively.'}
+                    </p>
+                  </div>
+                </div>
               </div>
 
               <div className="pt-2 space-y-3 border-t border-gray-200 dark:border-[#30363d]">

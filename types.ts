@@ -78,6 +78,8 @@ export interface UserPreferences {
 export interface UserSettings {
   contributeByDefault: boolean;
   defaultGraphicTypeId?: string;
+  defaultVisualStyleId?: string;
+  defaultColorSchemeId?: string;
   defaultAspectRatio?: string;
   confirmDeleteHistory?: boolean;
   confirmDeleteCurrent?: boolean;

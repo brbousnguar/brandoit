@@ -43,6 +43,8 @@ const sanitizePreferences = (prefs: UserPreferences): any => {
     const settingsClean: any = {};
     if (s.contributeByDefault !== undefined) settingsClean.contributeByDefault = s.contributeByDefault;
     if (s.defaultGraphicTypeId) settingsClean.defaultGraphicTypeId = s.defaultGraphicTypeId;
+    if (s.defaultVisualStyleId) settingsClean.defaultVisualStyleId = s.defaultVisualStyleId;
+    if (s.defaultColorSchemeId) settingsClean.defaultColorSchemeId = s.defaultColorSchemeId;
     if (s.defaultAspectRatio) settingsClean.defaultAspectRatio = s.defaultAspectRatio;
     if (s.confirmDeleteHistory !== undefined) settingsClean.confirmDeleteHistory = s.confirmDeleteHistory;
     if (s.confirmDeleteCurrent !== undefined) settingsClean.confirmDeleteCurrent = s.confirmDeleteCurrent;
@@ -69,6 +71,8 @@ const hydratePreferences = (savedPrefs: any): UserPreferences => {
     settings: {
       contributeByDefault: savedPrefs.settings?.contributeByDefault ?? defaultPreferences.settings?.contributeByDefault ?? false,
       defaultGraphicTypeId: savedPrefs.settings?.defaultGraphicTypeId,
+      defaultVisualStyleId: savedPrefs.settings?.defaultVisualStyleId,
+      defaultColorSchemeId: savedPrefs.settings?.defaultColorSchemeId,
       defaultAspectRatio: savedPrefs.settings?.defaultAspectRatio,
       confirmDeleteHistory: savedPrefs.settings?.confirmDeleteHistory ?? true,
       confirmDeleteCurrent: savedPrefs.settings?.confirmDeleteCurrent ?? true

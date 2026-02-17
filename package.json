@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check:no-native-selects": "if rg -n \"<select\" App.tsx components; then echo \"Native <select> found. Use RichSelect.\" && exit 1; else echo \"No native <select> tags found.\"; fi"
   },
   "dependencies": {
     "@google/genai": "^1.33.0",

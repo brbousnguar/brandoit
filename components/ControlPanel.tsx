@@ -26,8 +26,11 @@ import {
   Search,
   Settings,
   Send,
-  Wand2
+  Wand2,
+  Copy,
+  RotateCcw
 } from 'lucide-react';
+import { RichSelect } from './RichSelect';
 
 interface ControlPanelProps {
   config: GenerationConfig;
@@ -50,6 +53,7 @@ interface ControlPanelProps {
   isAnalyzing: boolean;
   user: User | null; // Pass user for contribution
   selectedModel: string;
+  onResetToDefaults: () => void;
   onModelChange: (modelId: string) => void;
 }
 
@@ -81,6 +85,341 @@ const Modal = ({
   );
 };
 
+const DEFAULT_PALETTE_COLOR = '#000000';
+
+let colorParserContext: CanvasRenderingContext2D | null | undefined;
+
+const getColorParserContext = () => {
+  if (colorParserContext !== undefined) return colorParserContext;
+  if (typeof document === 'undefined') {
+    colorParserContext = null;
+    return colorParserContext;
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 1;
+  canvas.height = 1;
+  colorParserContext = canvas.getContext('2d');
+  return colorParserContext;
+};
+
+const stripWrappingQuotes = (value: string) => {
+  const trimmed = value.trim();
+  if (trimmed.length >= 2) {
+    const first = trimmed[0];
+    const last = trimmed[trimmed.length - 1];
+    if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+      return trimmed.slice(1, -1).trim();
+    }
+  }
+  return trimmed;
+};
+
+const normalizeHex = (hexValue: string): string | null => {
+  const hex = hexValue.replace(/^#/, '').trim();
+  if (!/^[0-9a-fA-F]+$/.test(hex)) return null;
+
+  if (hex.length === 3 || hex.length === 4) {
+    const expanded = hex.split('').map(char => `${char}${char}`).join('');
+    return `#${expanded.slice(0, 6).toUpperCase()}`;
+  }
+  if (hex.length === 6 || hex.length === 8) {
+    return `#${hex.slice(0, 6).toUpperCase()}`;
+  }
+  return null;
+};
+
+const normalizeColorToken = (rawColor: string): string | null => {
+  const input = stripWrappingQuotes(rawColor);
+  if (!input) return null;
+
+  const styleProbe = new Option().style;
+  styleProbe.color = '';
+  styleProbe.color = input;
+  if (!styleProbe.color) return null;
+
+  const ctx = getColorParserContext();
+  if (!ctx) return null;
+
+  ctx.fillStyle = '#000000';
+  ctx.fillStyle = styleProbe.color;
+  const parsed = String(ctx.fillStyle).trim();
+  if (!parsed || parsed.toLowerCase() === 'transparent') return null;
+
+  if (parsed.startsWith('#')) {
+    return normalizeHex(parsed);
+  }
+
+  const channels = parsed.match(/[\d.]+%?/g);
+  if (!channels || channels.length < 3) return null;
+
+  const rgb = channels.slice(0, 3).map(channel => {
+    if (channel.endsWith('%')) {
+      const value = Math.max(0, Math.min(100, Number.parseFloat(channel)));
+      return Math.round((value / 100) * 255);
+    }
+    const value = Math.max(0, Math.min(255, Number.parseFloat(channel)));
+    return Math.round(value);
+  });
+
+  if (rgb.some(channel => Number.isNaN(channel))) return null;
+
+  return `#${rgb.map(channel => channel.toString(16).padStart(2, '0')).join('').toUpperCase()}`;
+};
+
+const parseInlineCollectionValues = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === '|' || trimmed === '>') return [];
+  if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+    return trimmed
+      .slice(1, -1)
+      .split(',')
+      .map(part => stripWrappingQuotes(part))
+      .filter(Boolean);
+  }
+  return [stripWrappingQuotes(trimmed)].filter(Boolean);
+};
+
+const collectStringLeaves = (value: unknown): string[] => {
+  if (typeof value === 'string') return [value];
+  if (Array.isArray(value)) return value.flatMap(collectStringLeaves);
+  if (value && typeof value === 'object') {
+    return Object.values(value as Record<string, unknown>).flatMap(collectStringLeaves);
+  }
+  return [];
+};
+
+const parseJsonColorTokens = (input: string): string[] | null => {
+  try {
+    const parsed = JSON.parse(input);
+    return collectStringLeaves(parsed).map(stripWrappingQuotes).filter(Boolean);
+  } catch {
+    return null;
+  }
+};
+
+const parseYamlColorTokens = (input: string): string[] => {
+  const lines = input.split(/\r?\n/);
+  const tokens: string[] = [];
+  let inColorBlock = false;
+  let colorBlockIndent = -1;
+
+  for (const rawLine of lines) {
+    if (!rawLine.trim()) continue;
+
+    const indent = rawLine.match(/^\s*/)?.[0].length ?? 0;
+    const line = rawLine.trim();
+
+    if (inColorBlock && indent <= colorBlockIndent && !line.startsWith('-')) {
+      inColorBlock = false;
+      colorBlockIndent = -1;
+    }
+
+    const keyMatch = line.match(/^([A-Za-z0-9_-]+)\s*:\s*(.*)$/);
+    if (keyMatch) {
+      const key = keyMatch[1].toLowerCase();
+      const value = keyMatch[2] ?? '';
+
+      if (key.includes('color')) {
+        tokens.push(...parseInlineCollectionValues(value));
+        if (!value.trim() || value.trim() === '|' || value.trim() === '>') {
+          inColorBlock = true;
+          colorBlockIndent = indent;
+        } else {
+          inColorBlock = false;
+          colorBlockIndent = -1;
+        }
+      } else if (inColorBlock && indent <= colorBlockIndent) {
+        inColorBlock = false;
+        colorBlockIndent = -1;
+      }
+      continue;
+    }
+
+    if (line.startsWith('-')) {
+      tokens.push(stripWrappingQuotes(line.slice(1).trim()));
+      continue;
+    }
+
+    if (inColorBlock) {
+      tokens.push(...parseInlineCollectionValues(line));
+    }
+  }
+
+  return tokens.filter(Boolean);
+};
+
+const parseLooseColorTokens = (input: string) => {
+  const regex = /#(?:[0-9a-fA-F]{3,8})\b|(?:rgb|hsl)a?\([^)]+\)/g;
+  return input.match(regex) ?? [];
+};
+
+const normalizeColorList = (tokens: string[]) => {
+  const valid: string[] = [];
+  const invalid: string[] = [];
+  const seen = new Set<string>();
+
+  for (const token of tokens) {
+    const cleaned = stripWrappingQuotes(token);
+    if (!cleaned) continue;
+    const normalized = normalizeColorToken(cleaned);
+    if (normalized) {
+      if (!seen.has(normalized)) {
+        seen.add(normalized);
+        valid.push(normalized);
+      }
+    } else {
+      invalid.push(cleaned);
+    }
+  }
+
+  return { valid, invalid };
+};
+
+type ColorValueFormat = 'HEX' | 'RGB' | 'HSL' | 'NAME' | 'UNKNOWN';
+
+const detectColorFormat = (value: string): ColorValueFormat => {
+  const cleaned = stripWrappingQuotes(value).trim();
+  if (!cleaned) return 'UNKNOWN';
+  if (/^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(cleaned)) return 'HEX';
+  if (/^rgba?\(/i.test(cleaned)) return 'RGB';
+  if (/^hsla?\(/i.test(cleaned)) return 'HSL';
+  if (/^[a-zA-Z-]+$/.test(cleaned)) return 'NAME';
+  return 'UNKNOWN';
+};
+
+type HsvColor = { h: number; s: number; v: number };
+
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+const hexToRgbChannels = (hexColor: string) => {
+  const cleaned = normalizeHex(hexColor);
+  if (!cleaned) return null;
+  return {
+    r: Number.parseInt(cleaned.slice(1, 3), 16),
+    g: Number.parseInt(cleaned.slice(3, 5), 16),
+    b: Number.parseInt(cleaned.slice(5, 7), 16)
+  };
+};
+
+const rgbChannelsToHex = (r: number, g: number, b: number) => {
+  const toHex = (channel: number) => clamp(Math.round(channel), 0, 255).toString(16).padStart(2, '0').toUpperCase();
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+};
+
+const rgbChannelsToHsv = (r: number, g: number, b: number): HsvColor => {
+  const red = r / 255;
+  const green = g / 255;
+  const blue = b / 255;
+  const max = Math.max(red, green, blue);
+  const min = Math.min(red, green, blue);
+  const delta = max - min;
+
+  let hue = 0;
+  if (delta !== 0) {
+    if (max === red) hue = ((green - blue) / delta) % 6;
+    else if (max === green) hue = (blue - red) / delta + 2;
+    else hue = (red - green) / delta + 4;
+  }
+  hue = Math.round(hue * 60);
+  if (hue < 0) hue += 360;
+
+  const saturation = max === 0 ? 0 : (delta / max) * 100;
+  const value = max * 100;
+
+  return { h: clamp(hue, 0, 360), s: clamp(saturation, 0, 100), v: clamp(value, 0, 100) };
+};
+
+const hsvToRgbChannels = (h: number, s: number, v: number) => {
+  const saturation = clamp(s, 0, 100) / 100;
+  const value = clamp(v, 0, 100) / 100;
+  const chroma = value * saturation;
+  const hueSection = (clamp(h, 0, 360) % 360) / 60;
+  const x = chroma * (1 - Math.abs((hueSection % 2) - 1));
+  const m = value - chroma;
+
+  let red = 0;
+  let green = 0;
+  let blue = 0;
+
+  if (hueSection >= 0 && hueSection < 1) [red, green, blue] = [chroma, x, 0];
+  else if (hueSection < 2) [red, green, blue] = [x, chroma, 0];
+  else if (hueSection < 3) [red, green, blue] = [0, chroma, x];
+  else if (hueSection < 4) [red, green, blue] = [0, x, chroma];
+  else if (hueSection < 5) [red, green, blue] = [x, 0, chroma];
+  else [red, green, blue] = [chroma, 0, x];
+
+  return {
+    r: Math.round((red + m) * 255),
+    g: Math.round((green + m) * 255),
+    b: Math.round((blue + m) * 255)
+  };
+};
+
+const hexToHsv = (hexColor: string): HsvColor => {
+  const rgb = hexToRgbChannels(hexColor);
+  if (!rgb) return { h: 0, s: 0, v: 0 };
+  return rgbChannelsToHsv(rgb.r, rgb.g, rgb.b);
+};
+
+const hsvToHex = (hsv: HsvColor) => {
+  const rgb = hsvToRgbChannels(hsv.h, hsv.s, hsv.v);
+  return rgbChannelsToHex(rgb.r, rgb.g, rgb.b);
+};
+
+const rgbChannelsToHsl = (r: number, g: number, b: number) => {
+  const red = r / 255;
+  const green = g / 255;
+  const blue = b / 255;
+  const max = Math.max(red, green, blue);
+  const min = Math.min(red, green, blue);
+  const delta = max - min;
+  const lightness = (max + min) / 2;
+  const saturation = delta === 0 ? 0 : delta / (1 - Math.abs(2 * lightness - 1));
+
+  let hue = 0;
+  if (delta !== 0) {
+    if (max === red) hue = ((green - blue) / delta) % 6;
+    else if (max === green) hue = (blue - red) / delta + 2;
+    else hue = (red - green) / delta + 4;
+  }
+  hue = Math.round(hue * 60);
+  if (hue < 0) hue += 360;
+
+  return { h: hue, s: Math.round(saturation * 100), l: Math.round(lightness * 100) };
+};
+
+const commonHexNames: Record<string, string> = {
+  '#000000': 'black',
+  '#FFFFFF': 'white',
+  '#FF0000': 'red',
+  '#00FF00': 'lime',
+  '#0000FF': 'blue',
+  '#00FFFF': 'aqua',
+  '#FF00FF': 'fuchsia',
+  '#FFFF00': 'yellow',
+  '#008080': 'teal',
+  '#FFA500': 'orange',
+  '#800080': 'purple',
+  '#FFC0CB': 'pink',
+  '#808080': 'gray'
+};
+
+const formatColorValue = (hexColor: string, format: Exclude<ColorValueFormat, 'UNKNOWN'>, fallbackName?: string) => {
+  const normalized = normalizeHex(hexColor) || DEFAULT_PALETTE_COLOR;
+  const rgb = hexToRgbChannels(normalized);
+  if (!rgb) return normalized;
+
+  if (format === 'HEX') return normalized;
+  if (format === 'RGB') return `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
+  if (format === 'HSL') {
+    const hsl = rgbChannelsToHsl(rgb.r, rgb.g, rgb.b);
+    return `hsl(${hsl.h}, ${hsl.s}%, ${hsl.l}%)`;
+  }
+  if (fallbackName && detectColorFormat(fallbackName) === 'NAME') return fallbackName;
+  return commonHexNames[normalized] || normalized;
+};
+
 export const ControlPanel: React.FC<ControlPanelProps> = ({
   config,
   setConfig,
@@ -92,6 +431,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   isAnalyzing,
   user,
   selectedModel,
+  onResetToDefaults,
   onModelChange
 }) => {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
@@ -118,6 +458,16 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   const [isAnalysingOption, setIsAnalysingOption] = useState(false);
   const optionFileInputRef = useRef<HTMLInputElement>(null);
   const [isExpandingPrompt, setIsExpandingPrompt] = useState(false);
+  const [paletteCopyMessage, setPaletteCopyMessage] = useState<string | null>(null);
+  const paletteCopyTimerRef = useRef<number | null>(null);
+  const [bulkPaletteInput, setBulkPaletteInput] = useState('');
+  const [activeColorIndex, setActiveColorIndex] = useState<number | null>(null);
+  const [pickerHsv, setPickerHsv] = useState<HsvColor>({ h: 0, s: 0, v: 0 });
+  const [pickerFormat, setPickerFormat] = useState<Exclude<ColorValueFormat, 'UNKNOWN'>>('HEX');
+  const [pickerInput, setPickerInput] = useState('');
+  const pickerPanelRef = useRef<HTMLDivElement>(null);
+  const saturationValueRef = useRef<HTMLDivElement>(null);
+  const hueSliderRef = useRef<HTMLDivElement>(null);
 
   const handleExpandPrompt = async () => {
     if (!config.prompt || isExpandingPrompt) return;
@@ -297,9 +647,12 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
     setModalType(type);
     setActiveDropdown(null); // Close dropdown
     setEditingId(null); // Reset edit state
+    setPaletteCopyMessage(null);
+    setActiveColorIndex(null);
     setNewItemName('');
     setNewItemDescription('');
-    setNewItemColors(['#000000']); // Default color
+    setNewItemColors([DEFAULT_PALETTE_COLOR]); // Default color
+    setBulkPaletteInput('');
     
     // Default Scope
     if (user?.preferences?.settings?.contributeByDefault) {
@@ -314,6 +667,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
     setModalType(type);
     setActiveDropdown(null);
     setEditingId(item.id || item.value);
+    setActiveColorIndex(null);
 
     setNewItemName(item.name || item.label);
     setNewItemDescription(item.description || '');
@@ -324,12 +678,16 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
     if (type === 'color') {
       setNewItemColors(item.colors || []);
+      setBulkPaletteInput('');
     }
   };
 
   const closeModal = () => {
     setModalType(null);
     setEditingId(null);
+    setPaletteCopyMessage(null);
+    setBulkPaletteInput('');
+    setActiveColorIndex(null);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -405,6 +763,217 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    if (activeColorIndex === null) return;
+
+    const handlePickerOutsideClick = (event: MouseEvent) => {
+      if (pickerPanelRef.current && !pickerPanelRef.current.contains(event.target as Node)) {
+        setActiveColorIndex(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePickerOutsideClick);
+    return () => document.removeEventListener('mousedown', handlePickerOutsideClick);
+  }, [activeColorIndex]);
+
+  useEffect(() => {
+    if (activeColorIndex !== null && activeColorIndex >= newItemColors.length) {
+      setActiveColorIndex(null);
+    }
+  }, [activeColorIndex, newItemColors.length]);
+
+  useEffect(() => {
+    return () => {
+      if (paletteCopyTimerRef.current) {
+        window.clearTimeout(paletteCopyTimerRef.current);
+      }
+    };
+  }, []);
+
+  const showPaletteCopyMessage = (message: string) => {
+    if (paletteCopyTimerRef.current) {
+      window.clearTimeout(paletteCopyTimerRef.current);
+    }
+    setPaletteCopyMessage(message);
+    paletteCopyTimerRef.current = window.setTimeout(() => setPaletteCopyMessage(null), 1800);
+  };
+
+  const buildPaletteYaml = () => {
+    const paletteName = (newItemName.trim() || 'Custom Palette').replace(/"/g, '\\"');
+    const normalized = normalizeColorList(newItemColors).valid;
+    const colors = (normalized.length > 0 ? normalized : ['#888888']).map(color => color.trim());
+    const colorList = colors.map(color => `  - "${color}"`).join('\n');
+    return `palette:\n  name: "${paletteName}"\n  colors:\n${colorList}`;
+  };
+
+  const fallbackCopyText = (text: string) => {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.setAttribute('readonly', '');
+    textArea.style.position = 'fixed';
+    textArea.style.top = '-9999px';
+    document.body.appendChild(textArea);
+    textArea.select();
+    const copied = document.execCommand('copy');
+    document.body.removeChild(textArea);
+    return copied;
+  };
+
+  const handleCopyPaletteYaml = async () => {
+    if (modalType !== 'color') return;
+    const yaml = buildPaletteYaml();
+    try {
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        await navigator.clipboard.writeText(yaml);
+      } else if (!fallbackCopyText(yaml)) {
+        throw new Error('Clipboard write is not available');
+      }
+      showPaletteCopyMessage('Palette YAML copied');
+    } catch (err) {
+      console.error('Failed to copy palette YAML:', err);
+      showPaletteCopyMessage('Copy failed');
+    }
+  };
+
+  const formatBadgeClassMap: Record<ColorValueFormat, string> = {
+    HEX: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30',
+    RGB: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+    HSL: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
+    NAME: 'bg-violet-500/10 text-violet-400 border-violet-500/30',
+    UNKNOWN: 'bg-slate-500/10 text-slate-300 border-slate-500/30'
+  };
+
+  const setColorAtIndex = (index: number, color: string) => {
+    setNewItemColors(prev => prev.map((existing, i) => (i === index ? color : existing)));
+  };
+
+  const openColorPicker = (index: number, rawColor?: string) => {
+    const source = rawColor ?? newItemColors[index] ?? DEFAULT_PALETTE_COLOR;
+    const normalized = normalizeColorToken(source) || DEFAULT_PALETTE_COLOR;
+    const detectedFormat = detectColorFormat(source);
+    const nextFormat = detectedFormat === 'UNKNOWN' ? 'HEX' : detectedFormat;
+
+    setActiveColorIndex(index);
+    setPickerHsv(hexToHsv(normalized));
+    setPickerFormat(nextFormat);
+    setPickerInput(formatColorValue(normalized, nextFormat, source));
+  };
+
+  const handleAddPaletteColor = () => {
+    const nextIndex = newItemColors.length;
+    setNewItemColors(prev => [...prev, DEFAULT_PALETTE_COLOR]);
+    openColorPicker(nextIndex, DEFAULT_PALETTE_COLOR);
+  };
+
+  const commitHsv = (updater: (prev: HsvColor) => HsvColor) => {
+    if (activeColorIndex === null) return;
+
+    setPickerHsv(prev => {
+      const candidate = updater(prev);
+      const next = {
+        h: clamp(candidate.h, 0, 360),
+        s: clamp(candidate.s, 0, 100),
+        v: clamp(candidate.v, 0, 100)
+      };
+      const hex = hsvToHex(next);
+      setColorAtIndex(activeColorIndex, hex);
+      setPickerFormat('HEX');
+      setPickerInput(hex);
+      return next;
+    });
+  };
+
+  const handlePointerDrag = (
+    event: React.PointerEvent<HTMLDivElement>,
+    onMove: (clientX: number, clientY: number) => void
+  ) => {
+    event.preventDefault();
+    onMove(event.clientX, event.clientY);
+
+    const move = (nextEvent: PointerEvent) => {
+      onMove(nextEvent.clientX, nextEvent.clientY);
+    };
+    const stop = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', stop);
+    };
+
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', stop);
+  };
+
+  const updateSaturationValueFromPointer = (clientX: number, clientY: number) => {
+    const element = saturationValueRef.current;
+    if (!element) return;
+
+    const rect = element.getBoundingClientRect();
+    const x = clamp(clientX - rect.left, 0, rect.width);
+    const y = clamp(clientY - rect.top, 0, rect.height);
+    const saturation = (x / rect.width) * 100;
+    const value = 100 - (y / rect.height) * 100;
+
+    commitHsv(prev => ({ ...prev, s: saturation, v: value }));
+  };
+
+  const updateHueFromPointer = (clientX: number) => {
+    const element = hueSliderRef.current;
+    if (!element) return;
+
+    const rect = element.getBoundingClientRect();
+    const x = clamp(clientX - rect.left, 0, rect.width);
+    const hue = (x / rect.width) * 360;
+    commitHsv(prev => ({ ...prev, h: hue }));
+  };
+
+  const handlePickerFormatChange = (format: Exclude<ColorValueFormat, 'UNKNOWN'>) => {
+    if (activeColorIndex === null) return;
+
+    const currentRaw = newItemColors[activeColorIndex] ?? DEFAULT_PALETTE_COLOR;
+    const normalized = normalizeColorToken(currentRaw) || DEFAULT_PALETTE_COLOR;
+    setPickerFormat(format);
+    setPickerInput(formatColorValue(normalized, format, currentRaw));
+  };
+
+  const applyPickerInput = () => {
+    if (activeColorIndex === null) return;
+    const normalized = normalizeColorToken(pickerInput);
+    if (!normalized) {
+      showPaletteCopyMessage(`Invalid color format: ${pickerInput || 'empty value'}`);
+      return;
+    }
+
+    setColorAtIndex(activeColorIndex, normalized);
+    setPickerHsv(hexToHsv(normalized));
+    setPickerInput(formatColorValue(normalized, pickerFormat, pickerInput));
+  };
+
+  const handleImportColorList = () => {
+    if (modalType !== 'color') return;
+
+    if (!bulkPaletteInput.trim()) {
+      showPaletteCopyMessage('Paste JSON or YAML with colors first');
+      return;
+    }
+
+    const jsonTokens = parseJsonColorTokens(bulkPaletteInput) || [];
+    const yamlTokens = jsonTokens.length > 0 ? [] : parseYamlColorTokens(bulkPaletteInput);
+    const looseTokens = jsonTokens.length > 0 || yamlTokens.length > 0 ? [] : parseLooseColorTokens(bulkPaletteInput);
+    const tokens = jsonTokens.length > 0 ? jsonTokens : yamlTokens.length > 0 ? yamlTokens : looseTokens;
+    const { valid, invalid } = normalizeColorList(tokens);
+
+    if (valid.length === 0) {
+      showPaletteCopyMessage('No valid colors found in JSON/YAML');
+      return;
+    }
+
+    setNewItemColors(valid);
+    showPaletteCopyMessage(
+      invalid.length > 0
+        ? `Imported ${valid.length} colors (${invalid.length} skipped)`
+        : `Imported ${valid.length} colors`
+    );
+  };
+
   const handleSaveItem = async () => {
     if (!newItemName) return;
 
@@ -436,7 +1005,16 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         }
       }
       else if (modalType === 'color') {
-        const colors = newItemColors.length > 0 ? newItemColors : ['#888888'];
+        const { valid, invalid } = normalizeColorList(newItemColors);
+        if (valid.length === 0) {
+          showPaletteCopyMessage('Add at least one valid color before saving');
+          return;
+        }
+        if (invalid.length > 0) {
+          showPaletteCopyMessage(`Fix invalid colors before saving (${invalid.length})`);
+          return;
+        }
+        const colors = valid.length > 0 ? valid : ['#888888'];
         const newColor = { name: newItemName, colors, scope: itemScope, teamId: selectedTeamId };
         if (user) {
            if (editingId) {
@@ -723,6 +1301,23 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               )}
             </div>
 
+            <div className="relative group">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveDropdown(null);
+                  onResetToDefaults();
+                }}
+                className="h-10 w-10 flex items-center justify-center border border-gray-200 dark:border-[#30363d] bg-white dark:bg-[#0d1117] hover:bg-gray-50 dark:hover:bg-[#161b22] text-slate-600 dark:text-slate-300 rounded-lg transition-all"
+                title="Reset toolbar to preference defaults"
+              >
+                <RotateCcw size={16} className="text-brand-teal dark:text-brand-teal" />
+                <span className="pointer-events-none absolute top-full mt-2 left-1/2 -translate-x-1/2 whitespace-nowrap text-[11px] font-medium px-2 py-1 rounded-md bg-black/90 text-white shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                  Reset defaults
+                </span>
+              </button>
+            </div>
+
             {user && (
               <>
                 <div className="h-8 w-px bg-gray-200 dark:bg-[#30363d] mx-1 hidden sm:block"></div>
@@ -747,7 +1342,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                       ) : (
                         <UploadCloud size={16} className="text-brand-teal dark:text-brand-teal" />
                       )}
-                      <span className="pointer-events-none absolute -top-9 left-1/2 -translate-x-1/2 whitespace-nowrap text-[11px] font-medium px-2 py-1 rounded-md bg-black/90 text-white shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                      <span className="pointer-events-none absolute top-full mt-2 left-1/2 -translate-x-1/2 whitespace-nowrap text-[11px] font-medium px-2 py-1 rounded-md bg-black/90 text-white shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-10">
                         Upload brand
                       </span>
                    </button>
@@ -889,49 +1484,182 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           )}
 
           {modalType === 'color' && (
-            <div>
+            <div ref={pickerPanelRef}>
                <label className={labelClass}>Palette Colors</label>
-               <div className="flex flex-wrap gap-2">
-                 {newItemColors.map((color, idx) => (
-                   <div key={idx} className="relative group/color">
-                     <div 
-                       className="w-8 h-8 rounded-full shadow-sm ring-1 ring-black/10 dark:ring-white/10 overflow-hidden cursor-pointer"
-                       style={{ backgroundColor: color }}
-                     >
-                       <input 
-                         type="color" 
-                         value={color}
-                         onChange={(e) => {
-                           const newColors = [...newItemColors];
-                           newColors[idx] = e.target.value;
-                           setNewItemColors(newColors);
-                         }}
-                         className="opacity-0 w-full h-full cursor-pointer"
-                       />
-                     </div>
-                     {newItemColors.length > 1 && (
-                       <button 
-                         onClick={() => {
-                           setNewItemColors(newItemColors.filter((_, i) => i !== idx));
-                         }}
-                         className="absolute -top-1 -right-1 bg-white dark:bg-[#30363d] text-slate-500 rounded-full p-0.5 shadow-md opacity-0 group-hover/color:opacity-100 transition-opacity hover:text-red-500"
-                       >
-                         <X size={10} />
-                       </button>
-                     )}
-                   </div>
-                 ))}
-                 <button 
-                   onClick={() => setNewItemColors([...newItemColors, '#000000'])}
-                   className="w-8 h-8 rounded-full border border-dashed border-slate-300 dark:border-slate-600 flex items-center justify-center text-slate-400 hover:text-brand-teal hover:border-brand-teal transition-colors"
+               <div className="flex flex-wrap items-center gap-2">
+                 {newItemColors.map((color, idx) => {
+                   const normalizedColor = normalizeColorToken(color) || DEFAULT_PALETTE_COLOR;
+                   const isActive = activeColorIndex === idx;
+                   return (
+                      <div key={idx} className="relative">
+                        <button
+                          type="button"
+                          onClick={() => openColorPicker(idx)}
+                          className={`relative w-9 h-9 rounded-full overflow-hidden transition-all ${
+                            isActive
+                              ? 'ring-2 ring-brand-teal ring-offset-2 ring-offset-white dark:ring-offset-[#161b22] scale-105'
+                              : 'ring-1 ring-black/10 dark:ring-white/10 hover:scale-105'
+                          }`}
+                          style={{ backgroundColor: normalizedColor }}
+                          title={`Edit color ${idx + 1}`}
+                        >
+                          <span className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-black/20" />
+                        </button>
+                        {newItemColors.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setNewItemColors(newItemColors.filter((_, i) => i !== idx));
+                            }}
+                            className="absolute -top-1 -right-1 h-4 w-4 flex items-center justify-center rounded-full bg-white dark:bg-[#1f2937] border border-gray-200 dark:border-[#30363d] text-slate-500 hover:text-red-400 transition-colors"
+                            title="Remove color"
+                          >
+                            <X size={10} />
+                          </button>
+                        )}
+                      </div>
+                   );
+                 })}
+                 <button
+                   type="button"
+                   onClick={handleAddPaletteColor}
+                   className="h-9 px-3 rounded-full border border-dashed border-slate-300 dark:border-slate-600 text-xs font-semibold text-slate-500 hover:text-brand-teal hover:border-brand-teal transition-colors flex items-center gap-1"
                    title="Add Color"
                  >
-                   <Plus size={14} />
+                   <Plus size={12} />
+                   Add
                  </button>
                </div>
-               <p className="text-[10px] text-slate-400 mt-2">
-                 Click a circle to pick a color.
-               </p>
+
+               {activeColorIndex !== null && (
+                 <div className="mt-3 rounded-2xl border border-gray-200 dark:border-[#30363d] bg-gradient-to-br from-white to-slate-50 dark:from-[#111827] dark:to-[#0b1220] p-3 shadow-xl shadow-slate-900/10 dark:shadow-black/30 space-y-2.5">
+                   <div className="flex items-center justify-between gap-2">
+                     <div className="flex items-center gap-2 min-w-0">
+                       <div
+                         className="w-6 h-6 rounded-md ring-1 ring-black/10 dark:ring-white/10 shrink-0"
+                         style={{ backgroundColor: hsvToHex(pickerHsv) }}
+                       />
+                       <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">
+                         Edit color {activeColorIndex + 1}
+                       </span>
+                     </div>
+                     <button
+                       type="button"
+                       onClick={() => setActiveColorIndex(null)}
+                       className="p-1 rounded-md text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-gray-200/70 dark:hover:bg-[#1f2937] transition-colors"
+                       title="Close color picker"
+                     >
+                       <X size={14} />
+                     </button>
+                   </div>
+
+                   <div
+                     ref={saturationValueRef}
+                     className="relative h-32 rounded-xl overflow-hidden cursor-crosshair ring-1 ring-black/10 dark:ring-white/10"
+                     style={{ backgroundColor: `hsl(${pickerHsv.h} 100% 50%)` }}
+                     onPointerDown={(event) => handlePointerDrag(event, updateSaturationValueFromPointer)}
+                   >
+                     <div className="absolute inset-0 bg-gradient-to-r from-white to-transparent" />
+                     <div className="absolute inset-0 bg-gradient-to-t from-black to-transparent" />
+                     <div
+                       className="absolute w-3.5 h-3.5 rounded-full border-2 border-white shadow-lg ring-1 ring-black/40 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+                       style={{ left: `${pickerHsv.s}%`, top: `${100 - pickerHsv.v}%` }}
+                     />
+                   </div>
+
+                   <div
+                     ref={hueSliderRef}
+                     className="relative h-3 rounded-full overflow-hidden cursor-ew-resize ring-1 ring-black/10 dark:ring-white/10 bg-[linear-gradient(90deg,#ff0000,#ffff00,#00ff00,#00ffff,#0000ff,#ff00ff,#ff0000)]"
+                     onPointerDown={(event) => handlePointerDrag(event, (clientX) => updateHueFromPointer(clientX))}
+                   >
+                     <div
+                       className="absolute top-1/2 w-3.5 h-3.5 rounded-full border-2 border-white shadow-md ring-1 ring-black/30 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+                       style={{ left: `${(pickerHsv.h / 360) * 100}%` }}
+                     />
+                   </div>
+
+                   <div className="flex items-center gap-2">
+                     <div className="inline-flex rounded-lg border border-gray-200 dark:border-[#30363d] overflow-hidden shrink-0">
+                       {(['HEX', 'RGB', 'HSL', 'NAME'] as const).map(format => (
+                         <button
+                           key={format}
+                           type="button"
+                           onClick={() => handlePickerFormatChange(format)}
+                           className={`px-2 py-1 text-[10px] font-semibold transition-colors ${
+                             pickerFormat === format
+                               ? 'bg-brand-teal/15 text-brand-teal'
+                               : 'bg-white dark:bg-[#0d1117] text-slate-500 dark:text-slate-300 hover:text-brand-teal'
+                           }`}
+                         >
+                           {format}
+                         </button>
+                       ))}
+                     </div>
+                     <div className="relative flex-1 min-w-0">
+                       <input
+                         type="text"
+                         value={pickerInput}
+                         onChange={(event) => setPickerInput(event.target.value)}
+                         onKeyDown={(event) => {
+                           if (event.key === 'Enter') {
+                             event.preventDefault();
+                             applyPickerInput();
+                           }
+                         }}
+                         placeholder="#0B4F6C, rgb(...), hsl(...), teal"
+                         className="w-full bg-white dark:bg-[#0d1117] border border-gray-200 dark:border-[#30363d] rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-brand-teal text-slate-900 dark:text-white"
+                       />
+                       <span className={`absolute right-2 top-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded-md border text-[9px] font-bold ${formatBadgeClassMap[pickerFormat]}`}>
+                         {pickerFormat}
+                       </span>
+                     </div>
+                     <button
+                       type="button"
+                       onClick={applyPickerInput}
+                       className="px-2.5 py-1.5 rounded-lg bg-brand-teal/15 text-brand-teal border border-brand-teal/40 text-[10px] font-semibold hover:bg-brand-teal/25 transition-colors shrink-0"
+                     >
+                       Apply
+                     </button>
+                   </div>
+                 </div>
+               )}
+
+               <div className="mt-3">
+                 <label className="block text-[11px] font-bold uppercase tracking-wide text-slate-500 mb-1">
+                   Paste Colors (JSON or YAML)
+                 </label>
+                 <textarea
+                   value={bulkPaletteInput}
+                   onChange={(e) => setBulkPaletteInput(e.target.value)}
+                   placeholder={'["#0B4F6C", "rgb(0, 169, 165)"]\n\ncolors:\n  - "#0B4F6C"\n  - hsl(178, 100%, 33%)'}
+                   className="w-full min-h-[92px] resize-y bg-white dark:bg-[#0d1117] border border-gray-200 dark:border-[#30363d] rounded-lg px-3 py-2 text-xs leading-5 focus:outline-none focus:ring-1 focus:ring-brand-teal text-slate-900 dark:text-white"
+                 />
+                 <button
+                   type="button"
+                   onClick={handleImportColorList}
+                   className="mt-2 inline-flex items-center gap-1 rounded-md border border-gray-200 dark:border-[#30363d] px-2 py-1 text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-[#21262d] transition-colors"
+                 >
+                   <UploadCloud size={12} />
+                   Import Colors
+                 </button>
+               </div>
+
+               <div className="mt-3 flex items-center justify-between gap-2">
+                 <p className="text-[10px] text-slate-400">
+                   Use the picker or enter hex, rgb, hsl, or named colors.
+                 </p>
+                 <button
+                   type="button"
+                   onClick={handleCopyPaletteYaml}
+                   className="inline-flex items-center gap-1 rounded-md border border-gray-200 dark:border-[#30363d] px-2 py-1 text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-[#21262d] transition-colors"
+                 >
+                   <Copy size={12} />
+                   Copy YAML
+                 </button>
+               </div>
+               {paletteCopyMessage && (
+                 <p className="text-[10px] text-brand-teal mt-1">{paletteCopyMessage}</p>
+               )}
             </div>
           )}
 
@@ -979,15 +1707,14 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                 {/* Team Selection Dropdown */}
                 {itemScope === 'team' && (
                   <div className="animate-in fade-in slide-in-from-top-2">
-                    <select
+                    <RichSelect
                       value={selectedTeamId}
-                      onChange={(e) => setSelectedTeamId(e.target.value)}
-                      className="w-full bg-white dark:bg-[#0d1117] border border-gray-200 dark:border-[#30363d] rounded-lg p-2 text-xs focus:ring-1 focus:ring-brand-orange focus:outline-none"
-                    >
-                      {userTeams.map(t => (
-                        <option key={t.id} value={t.id}>{t.name}</option>
-                      ))}
-                    </select>
+                      onChange={setSelectedTeamId}
+                      options={userTeams.map(team => ({ value: team.id, label: team.name }))}
+                      placeholder={userTeams.length > 0 ? 'Select a team' : 'No teams available'}
+                      disabled={userTeams.length === 0}
+                      compact
+                    />
                   </div>
                 )}
              </div>

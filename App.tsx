@@ -11,7 +11,8 @@ import {
   BRAND_COLORS, 
   VISUAL_STYLES, 
   GRAPHIC_TYPES, 
-  ASPECT_RATIOS 
+  ASPECT_RATIOS,
+  SUPPORTED_MODELS
 } from './constants';
 import { generateGraphic, refineGraphic, analyzeBrandGuidelines, describeImagePrompt } from './services/geminiService';
 import { generateOpenAIImage } from './services/openaiService';
@@ -42,6 +43,70 @@ import {
   Globe,
   Github
 } from 'lucide-react';
+
+interface ToolbarSelectionCache {
+  colorSchemeId?: string;
+  visualStyleId?: string;
+  graphicTypeId?: string;
+  aspectRatio?: string;
+  selectedModel?: string;
+}
+
+const TOOLBAR_SELECTION_KEY_PREFIX = 'brandoit_toolbar_selection_v1';
+const TOOLBAR_SELECTION_LAST_KEY = `${TOOLBAR_SELECTION_KEY_PREFIX}:last`;
+const MODEL_ID_SET = new Set(SUPPORTED_MODELS.map(model => model.id));
+
+const getToolbarSelectionKey = (userId?: string | null) =>
+  `${TOOLBAR_SELECTION_KEY_PREFIX}:${userId || 'guest'}`;
+
+const normalizeToolbarSelection = (value: unknown): ToolbarSelectionCache | null => {
+  if (!value || typeof value !== 'object') return null;
+  const source = value as Record<string, unknown>;
+  const normalized: ToolbarSelectionCache = {};
+
+  if (typeof source.colorSchemeId === 'string') normalized.colorSchemeId = source.colorSchemeId;
+  if (typeof source.visualStyleId === 'string') normalized.visualStyleId = source.visualStyleId;
+  if (typeof source.graphicTypeId === 'string') normalized.graphicTypeId = source.graphicTypeId;
+  if (typeof source.aspectRatio === 'string') normalized.aspectRatio = source.aspectRatio;
+  if (typeof source.selectedModel === 'string' && MODEL_ID_SET.has(source.selectedModel)) {
+    normalized.selectedModel = source.selectedModel;
+  }
+
+  return Object.keys(normalized).length > 0 ? normalized : null;
+};
+
+const readToolbarSelection = (userId?: string | null): ToolbarSelectionCache | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(getToolbarSelectionKey(userId));
+    if (!raw) return null;
+    return normalizeToolbarSelection(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+};
+
+const readLastToolbarSelection = (): ToolbarSelectionCache | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(TOOLBAR_SELECTION_LAST_KEY);
+    if (!raw) return null;
+    return normalizeToolbarSelection(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+};
+
+const writeToolbarSelection = (selection: ToolbarSelectionCache, userId?: string | null) => {
+  if (typeof window === 'undefined') return;
+  try {
+    const payload = JSON.stringify(selection);
+    window.localStorage.setItem(TOOLBAR_SELECTION_LAST_KEY, payload);
+    window.localStorage.setItem(getToolbarSelectionKey(userId), payload);
+  } catch {
+    // Ignore storage write failures.
+  }
+};
 
 const App: React.FC = () => {
   // Critical Config Check
@@ -95,13 +160,17 @@ const App: React.FC = () => {
   const [aspectRatios, setAspectRatios] = useState<AspectRatioOption[]>([]);
 
   // Configuration State
-  const [config, setConfig] = useState<GenerationConfig>({
-    prompt: '',
-    colorSchemeId: '', // Initial empty
-    visualStyleId: '',
-    graphicTypeId: '',
-    aspectRatio: ''
+  const [config, setConfig] = useState<GenerationConfig>(() => {
+    const cached = readLastToolbarSelection();
+    return {
+      prompt: '',
+      colorSchemeId: cached?.colorSchemeId || '',
+      visualStyleId: cached?.visualStyleId || '',
+      graphicTypeId: cached?.graphicTypeId || '',
+      aspectRatio: cached?.aspectRatio || ''
+    };
   });
+  const [hasHydratedToolbarState, setHasHydratedToolbarState] = useState(false);
 
   const [generatedImage, setGeneratedImage] = useState<GeneratedImage | null>(null);
   const [history, setHistory] = useState<GenerationHistoryItem[]>([]);
@@ -117,35 +186,86 @@ const App: React.FC = () => {
   const [confirmDeleteModal, setConfirmDeleteModal] = useState<{ type: 'history' | 'current'; id?: string } | null>(null);
   const [skipFutureConfirm, setSkipFutureConfirm] = useState(false);
 
+  const pickResourceId = <T extends { id: string }>(
+    items: T[],
+    preferredId?: string,
+    fallbackId?: string
+  ) => {
+    if (preferredId && items.some(item => item.id === preferredId)) return preferredId;
+    if (fallbackId && items.some(item => item.id === fallbackId)) return fallbackId;
+    return items[0]?.id || '';
+  };
+
   // Load Resources (Structures)
-  const loadResources = async (userId?: string) => {
-    const resources = await resourceService.getAllResources(userId);
+  const loadResources = async (activeUser?: User | null) => {
+    const resources = await resourceService.getAllResources(activeUser?.id);
     setBrandColors(resources.brandColors);
     setVisualStyles(resources.visualStyles);
     setGraphicTypes(resources.graphicTypes);
     setAspectRatios(resources.aspectRatios);
 
-    // Set initial config if empty
+    const cachedSelection = activeUser
+      ? readToolbarSelection(activeUser.id)
+      : (readToolbarSelection() || readLastToolbarSelection());
+    const settings = activeUser?.preferences.settings;
+    const selectedModelForDefaults =
+      cachedSelection?.selectedModel ||
+      activeUser?.preferences.selectedModel ||
+      'gemini';
+    const modelAspectRatios = getAspectRatiosForModel(selectedModelForDefaults, resources.aspectRatios);
+    const preferredAspectRatio = cachedSelection?.aspectRatio || settings?.defaultAspectRatio;
+
     setConfig(prev => ({
-        ...prev,
-        colorSchemeId: prev.colorSchemeId || resources.brandColors[0]?.id || '',
-        visualStyleId: prev.visualStyleId || resources.visualStyles[0]?.id || '',
-        graphicTypeId: prev.graphicTypeId || resources.graphicTypes[0]?.id || '',
-        aspectRatio: prev.aspectRatio || resources.aspectRatios[0]?.value || ''
+      ...prev,
+      colorSchemeId: pickResourceId(
+        resources.brandColors,
+        cachedSelection?.colorSchemeId || settings?.defaultColorSchemeId,
+        prev.colorSchemeId
+      ),
+      visualStyleId: pickResourceId(
+        resources.visualStyles,
+        cachedSelection?.visualStyleId || settings?.defaultVisualStyleId,
+        prev.visualStyleId
+      ),
+      graphicTypeId: pickResourceId(
+        resources.graphicTypes,
+        cachedSelection?.graphicTypeId || settings?.defaultGraphicTypeId,
+        prev.graphicTypeId
+      ),
+      aspectRatio: preferredAspectRatio
+        ? getSafeAspectRatioForModel(selectedModelForDefaults, preferredAspectRatio, resources.aspectRatios)
+        : getSafeAspectRatioForModel(
+            selectedModelForDefaults,
+            prev.aspectRatio || modelAspectRatios[0]?.value || '',
+            resources.aspectRatios
+          )
     }));
+    setHasHydratedToolbarState(true);
   };
+
+  useEffect(() => {
+    // Reset selection state when account context changes so defaults can be applied per user.
+    setHasHydratedToolbarState(false);
+    setConfig(prev => ({
+      ...prev,
+      colorSchemeId: '',
+      visualStyleId: '',
+      graphicTypeId: '',
+      aspectRatio: ''
+    }));
+  }, [user?.id]);
 
   useEffect(() => {
     if (user?.username === 'planetoftheweb') {
        // Seed structures only if admin is logged in
-       seedStructures(user).then(() => loadResources(user.id));
+       seedStructures(user).then(() => loadResources(user));
     } else {
-       loadResources(user?.id);
+       loadResources(user);
     }
     
     // Seed catalog (legacy community items) - can probably be removed or gated too
     // seedCatalog().catch(console.error);
-  }, [user]); // Run when user changes
+  }, [user?.id, user?.username]); // Run when account context changes
 
   // Effect to toggle body class
   useEffect(() => {
@@ -160,9 +280,21 @@ const App: React.FC = () => {
   useEffect(() => {
     const unsubscribe = authService.onAuthStateChange(async (restoredUser) => {
       if (restoredUser) {
-        setUser(restoredUser);
+        const cachedSelection = readToolbarSelection(restoredUser.id);
+        const cachedModel = cachedSelection?.selectedModel;
+        const hydratedUser =
+          cachedModel && cachedModel !== restoredUser.preferences.selectedModel
+            ? {
+                ...restoredUser,
+                preferences: {
+                  ...restoredUser.preferences,
+                  selectedModel: cachedModel
+                }
+              }
+            : restoredUser;
+        setUser(hydratedUser);
         // Load history for restored user
-        const updatedHistory = await historyService.getHistory(restoredUser);
+        const updatedHistory = await historyService.getHistory(hydratedUser);
         setHistory(updatedHistory);
       } else {
         setUser(null);
@@ -221,6 +353,28 @@ const App: React.FC = () => {
       return { ...prev, aspectRatio: safeAspectRatio };
     });
   }, [selectedModel, aspectRatios]);
+
+  useEffect(() => {
+    if (!hasHydratedToolbarState) return;
+    writeToolbarSelection(
+      {
+        colorSchemeId: config.colorSchemeId,
+        visualStyleId: config.visualStyleId,
+        graphicTypeId: config.graphicTypeId,
+        aspectRatio: config.aspectRatio,
+        selectedModel
+      },
+      user?.id
+    );
+  }, [
+    hasHydratedToolbarState,
+    config.colorSchemeId,
+    config.visualStyleId,
+    config.graphicTypeId,
+    config.aspectRatio,
+    selectedModel,
+    user?.id
+  ]);
 
   // Helper to get active API key based on selected model (with legacy fallback)
   const getActiveApiKey = (): string | undefined => {
@@ -571,8 +725,15 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSaveSettings = async (newSettings: UserSettings, profileData?: { name: string; username: string; photoURL?: string }, apiKey?: string, systemPrompt?: string) => {
+  const handleSaveSettings = async (
+    newSettings: UserSettings,
+    profileData?: { name: string; username: string; photoURL?: string },
+    geminiApiKey?: string,
+    systemPrompt?: string,
+    preferredModel?: string
+  ) => {
     if (!user) return;
+    const nextSelectedModel = preferredModel || user.preferences.selectedModel || 'gemini';
     
     // Update local state for immediate feedback
     const updatedUser = {
@@ -584,18 +745,26 @@ const App: React.FC = () => {
             ...user.preferences,
             settings: newSettings,
             // Keep legacy geminiApiKey for backward compatibility if provided
-            geminiApiKey: apiKey !== undefined ? apiKey : user.preferences.geminiApiKey,
-            systemPrompt: systemPrompt !== undefined ? systemPrompt : user.preferences.systemPrompt
+            geminiApiKey: geminiApiKey !== undefined ? geminiApiKey : user.preferences.geminiApiKey,
+            systemPrompt: systemPrompt !== undefined ? systemPrompt : user.preferences.systemPrompt,
+            selectedModel: nextSelectedModel
         }
     };
     setUser(updatedUser);
 
     // Apply defaults immediately if changed
+    if (newSettings.defaultColorSchemeId && newSettings.defaultColorSchemeId !== config.colorSchemeId) {
+        setConfig(prev => ({ ...prev, colorSchemeId: newSettings.defaultColorSchemeId! }));
+    }
+    if (newSettings.defaultVisualStyleId && newSettings.defaultVisualStyleId !== config.visualStyleId) {
+        setConfig(prev => ({ ...prev, visualStyleId: newSettings.defaultVisualStyleId! }));
+    }
     if (newSettings.defaultGraphicTypeId && newSettings.defaultGraphicTypeId !== config.graphicTypeId) {
         setConfig(prev => ({ ...prev, graphicTypeId: newSettings.defaultGraphicTypeId! }));
     }
     if (newSettings.defaultAspectRatio && newSettings.defaultAspectRatio !== config.aspectRatio) {
-        setConfig(prev => ({ ...prev, aspectRatio: newSettings.defaultAspectRatio! }));
+        const safeDefaultAspect = getSafeAspectRatioForModel(nextSelectedModel, newSettings.defaultAspectRatio, aspectRatios);
+        setConfig(prev => ({ ...prev, aspectRatio: safeDefaultAspect }));
     }
 
     // Save to Firestore
@@ -631,6 +800,36 @@ const App: React.FC = () => {
       setConfig(prev => ({ ...prev, graphicTypeId: newType.id }));
     }
     setCatalogMode(null);
+  };
+
+  const handleResetToPreferenceDefaults = () => {
+    const defaultModel = user?.preferences.selectedModel || 'gemini';
+    const settings = user?.preferences.settings;
+    const modelRatios = getAspectRatiosForModel(defaultModel, aspectRatios);
+
+    if (user && defaultModel !== selectedModel) {
+      setUser(prev =>
+        prev
+          ? {
+              ...prev,
+              preferences: {
+                ...prev.preferences,
+                selectedModel: defaultModel
+              }
+            }
+          : prev
+      );
+    }
+
+    setConfig(prev => ({
+      ...prev,
+      colorSchemeId: pickResourceId(brandColors, settings?.defaultColorSchemeId),
+      visualStyleId: pickResourceId(visualStyles, settings?.defaultVisualStyleId),
+      graphicTypeId: pickResourceId(graphicTypes, settings?.defaultGraphicTypeId),
+      aspectRatio: settings?.defaultAspectRatio
+        ? getSafeAspectRatioForModel(defaultModel, settings.defaultAspectRatio, aspectRatios)
+        : getSafeAspectRatioForModel(defaultModel, modelRatios[0]?.value || '', aspectRatios)
+    }));
   };
 
   return (
@@ -786,6 +985,8 @@ const App: React.FC = () => {
             user={user}
             onSave={handleSaveSettings}
             graphicTypes={graphicTypes}
+            visualStyles={visualStyles}
+            brandColors={brandColors}
             aspectRatios={aspectRatios}
           />
         )
@@ -810,6 +1011,7 @@ const App: React.FC = () => {
             isAnalyzing={isAnalyzing}
             user={user}
             selectedModel={selectedModel}
+            onResetToDefaults={handleResetToPreferenceDefaults}
             onModelChange={(modelId) => {
               if (!user) return;
               const updatedUser = {
